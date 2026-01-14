@@ -19,9 +19,13 @@ app.use(express.urlencoded({
     extended: true,  // allows nested objects
     limit: "16kb"
 }))
-
 app.use(express.static("public")) // stores public assets into a public folder
-
 app.use(cookieParser()) 
+
+// Routes Import
+import userRouter from "./routes/user.routes.js"
+
+// Routes Declaration
+userRouter.use("/api/v1/users", userRouter)
 
 export { app }
