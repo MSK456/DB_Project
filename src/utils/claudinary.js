@@ -31,3 +31,5 @@ import fs from "fs";
             return null
         }
     }
+
+export { UploadOnCloudinary }
