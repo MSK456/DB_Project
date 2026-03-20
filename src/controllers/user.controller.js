@@ -104,13 +104,14 @@ const loginUser = asyncHandler( async(req, res) => {
     // send cookie
 
     const {username, email, password} = req.body
+    console.log("Email: ", email)
 
-    if(!username || !email){
+    if(!username && !email){
         throw new ApiError(400, "Username and Email is required!")
     }
 
     const user = await User.findOne({
-        $or: [{username}, {password}]
+        $or: [{username}, {email}]
     })
 
     if(!user){
@@ -129,13 +130,13 @@ const loginUser = asyncHandler( async(req, res) => {
 
     const options = {
         httpOnly: true,
-        secure: true
+        secure: false
     }
 
     return res
     .status(200)
-    .cookie("Access Token", accessToken, options)
-    .cookie("Refresh Token", refreshToken, options)
+    .cookie("AccessToken", accessToken, options)
+    .cookie("RefreshToken", refreshToken, options)
     .json(
         new ApiResponse(
             200,
@@ -166,13 +167,13 @@ const logoutUser = asyncHandler( async(req, res) =>{
 
     const options = {
         httpOnly: true,
-        secure: true
+        secure: false
     }
 
     return res
     .status(200)
-    .clearCookie("accessToken")
-    .clearCookie("refreshToken")
+    .clearCookie("AccessToken")
+    .clearCookie("RefreshToken")
     .json(new ApiResponse(200, {}, "User Logged Out"))
 
 

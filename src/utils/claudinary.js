@@ -14,7 +14,7 @@ import fs from "fs";
             if(!localFilePath) {
                 console.log("Local file path not found !!!");
                 return null 
-            }
+             }
             
             // upload the file on claudinary
             const response = await cloudinary.uploader.upload(localFilePath, {
