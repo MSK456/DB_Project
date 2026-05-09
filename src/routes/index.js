@@ -10,6 +10,9 @@ import driverRouter from "./driver.routes.js";
 import vehicleRouter from "./vehicle.routes.js";
 import rideRouter from "./ride.routes.js";
 import adminRouter from "./admin.routes.js";
+import paymentRouter from "./payment.routes.js";
+import walletRouter from "./wallet.routes.js";
+import promoRouter from "./promo.routes.js";
 
 const masterRouter = Router();
 
@@ -19,5 +22,8 @@ masterRouter.use("/driver", driverRouter);
 masterRouter.use("/vehicles", vehicleRouter);
 masterRouter.use("/rides", rideRouter);
 masterRouter.use("/admin", adminRouter);
+masterRouter.use("/payments", paymentRouter);
+masterRouter.use("/wallet", walletRouter);
+masterRouter.use("/promos", promoRouter);
 
 export default masterRouter;

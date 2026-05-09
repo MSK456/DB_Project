@@ -398,4 +398,69 @@ Implemented dedicated endpoints for mandatory lab reports:
 | GET | `/api/v1/admin/reports/revenue` | Admin | City-wise revenue report |
 
 ---
-*(Phase 3 - Advanced Features & Scaling will be added below)*
+---
+
+## Phase 3: Payment Processing, Wallet System, Promo Codes & Financial Reports
+
+---
+
+### Phase 3.0 — Phase Overview & Financial Architecture
+Phase 3 completes the backend by implementing the entire financial layer. The core objective was to ensure data integrity and atomicity for all money movements (ACID properties) while satisfying the lab requirements for complex joins and aggregate queries.
+
+**Key Architecture Decisions:**
+- **Dual Wallets:** Separate tables for `Rider_Wallet` and `Driver` wallets to allow role-specific logic and symmetric balance tracking.
+- **Audit Ledger:** Every movement of money is recorded in `Wallet_Transaction`. The balance is never updated without a corresponding ledger entry.
+- **Atomic Transactions:** No financial logic runs as a single query; everything is wrapped in `START TRANSACTION ... COMMIT` to prevent partial data states.
+
+---
+
+### Phase 3.1 — Promo Code System
+Implemented a robust promo system that allows admins to manage discounts and riders to apply them.
+- **Validation Engine:** A shared utility (`promoUtils.js`) enforces 6 layers of checks: existence, activation status, expiry date, usage limits, minimum ride amount, and discount calculation.
+- **Trigger-Based Usage Tracking:** An `AFTER UPDATE` trigger on the `Payment` table automatically increments `usage_count` when a payment is marked as `Paid`, ensuring the DB handles usage logic internally.
+
+---
+
+### Phase 3.2 — Payment Processing (The ACID Core)
+The most critical part of the system is the atomic payment flow. This demonstrates the **Atomicity** and **Consistency** of the database.
+
+**Transaction Flow:**
+1. **Debit Rider:** Subtracts the final amount from `Rider_Wallet`.
+2. **Credit Driver:** Adds the base fare minus platform commission to the driver's wallet.
+3. **Log Transactions:** Creates two rows in `Wallet_Transaction` (debit for rider, credit for driver).
+4. **Update Payment:** Sets `payment_status = 'Paid'` and stores final amounts/promos used.
+5. **Rollback:** If any step fails (e.g., DB crash mid-way), the `catch` block rolls back the entire sequence so no money is lost or gained incorrectly.
+
+---
+
+### Phase 3.3 — Wallet Management & Payouts
+Drivers can view their earnings and request payouts.
+- **Payout Workflow:** Payouts are not automatic. Drivers submit a request (`Pending`). Admins must `Approve` it, which triggers a secondary transaction to deduct from the driver's wallet and mark the request as `Processed`.
+- **Top-Up:** Riders can simulate adding funds to their wallet to test payment flows.
+
+---
+
+### Phase 3.4 — Financial Report Endpoints (SQL Aggregates)
+Implemented 7 specialized reports using advanced SQL features to satisfy the grading rubric:
+- **GROUP BY + SUM/AVG:** Revenue by city and payment method.
+- **Complex JOINs:** Driver earnings report joining `Driver`, `User`, `Ride`, `Payment`, and `Wallet_Transaction`.
+- **HAVING Clause:** Filtering low-rated drivers based on aggregated rating scores.
+- **LEFT JOIN Audit:** `reportAllRiders` uses a `LEFT JOIN` to ensure riders with 0 rides are still included in the user audit, preventing data omission.
+
+---
+
+### Phase 3.5 — API Endpoints Reference (New)
+
+| Method | Endpoint | Role | Description |
+|--------|----------|------|-------------|
+| POST | `/api/v1/promos` | Admin | Create new promo code |
+| POST | `/api/v1/promos/validate` | Rider | Preview discount for a ride |
+| POST | `/api/v1/payments/pay` | Rider | Process ride payment (Atomic) |
+| POST | `/api/v1/wallet/topup` | Rider | Add money to rider wallet |
+| POST | `/api/v1/wallet/payout` | Driver | Request earnings withdrawal |
+| PATCH | `/api/v1/admin/payouts/:id/process` | Admin | Approve/Reject payout |
+| GET | `/api/v1/admin/reports/revenue/by-city` | Admin | Aggregate revenue report |
+| GET | `/api/v1/admin/reports/riders/all` | Admin | Full rider audit (LEFT JOIN) |
+
+---
+*(End of Backend Implementation Phases)*

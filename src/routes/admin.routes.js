@@ -26,10 +26,12 @@ router.patch("/vehicles/:vehicleId/verify", validateBody(verifyVehicleSchema), v
 router.get("/rides", fetchAllRides);
 
 // Reports
-router.get("/reports/rides/completed", reportRiderCompleted);
-router.get("/reports/drivers/by-city", reportDriversByCity);
-router.get("/reports/revenue", reportRevenue);
-router.get("/reports/drivers/low-rated", reportLowRatedDrivers);
-router.get("/reports/drivers/trip-count", reportDriverTripCounts);
+router.get("/reports/revenue/by-city", reportRevenueByCity);
+router.get("/reports/revenue/by-method", reportRevenueByMethod);
+router.get("/reports/drivers/earnings", reportDriverEarnings);
+router.get("/reports/drivers/low-rated", reportLowRatedDriversFull);
+router.get("/reports/drivers/trip-count", reportTripCountsFull);
+router.get("/reports/riders/all", reportAllRiders);
+router.get("/reports/promos/usage", reportPromoUsage);
 
 export default router;

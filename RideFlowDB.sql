@@ -133,7 +133,7 @@ CREATE TABLE Admin_Log (
 );
 
 select * from user;
-
+select * from vehicle;
 ALTER TABLE User ADD COLUMN refresh_token TEXT DEFAULT NULL;
 ALTER TABLE User ADD COLUMN profile_photo VARCHAR(255) DEFAULT NULL;
 
@@ -144,3 +144,5 @@ ALTER TABLE User ADD COLUMN profile_photo VARCHAR(255) DEFAULT NULL;
 ALTER TABLE User ADD COLUMN refresh_token TEXT DEFAULT NULL;
 -- profile_photo: VARCHAR(255)  Cloudinary CDN URL; nullable (optional at registration).
 ALTER TABLE User ADD COLUMN profile_photo VARCHAR(255) DEFAULT NULL;
+
+update user set role = "Admin" where user_id = 3;

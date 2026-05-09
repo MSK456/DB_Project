@@ -186,6 +186,22 @@ const setupTriggers = async () => {
     END
   `);
 
+  await pool.query("DROP TRIGGER IF EXISTS after_payment_paid_promo");
+  await pool.query(`
+    CREATE TRIGGER after_payment_paid_promo
+    AFTER UPDATE ON Payment
+    FOR EACH ROW
+    BEGIN
+      IF NEW.payment_status = 'Paid' 
+         AND OLD.payment_status != 'Paid' 
+         AND NEW.promo_code IS NOT NULL THEN
+          UPDATE Promo_Code 
+          SET usage_count = usage_count + 1
+          WHERE code = NEW.promo_code;
+      END IF;
+    END
+  `);
+
   console.log("  ✅  Triggers ready");
 };
 

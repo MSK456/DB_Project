@@ -166,7 +166,7 @@ const registerUser = asyncHandler(async (req, res) => {
     profile_photo,
   });
 
-  // ── 9. Driver-specific: create Driver profile + Wallet ────────────────────
+  // ── 9. Role-specific secondary profile creation ─────────────────────────
   if (role === USER_ROLES.DRIVER) {
     await createDriverProfile({
       driver_id: userId,
@@ -175,6 +175,9 @@ const registerUser = asyncHandler(async (req, res) => {
       profile_photo,
     });
     await createWallet(userId);
+  } else if (role === USER_ROLES.RIDER) {
+    // Phase 3: Create Rider Wallet
+    await pool.execute("INSERT INTO Rider_Wallet (rider_id) VALUES (?)", [userId]);
   }
 
   // ── 10. Generate tokens ───────────────────────────────────────────────────
