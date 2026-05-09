@@ -35,12 +35,19 @@ const router = Router();
 //  brute-force and credential stuffing attacks.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Shared limiter for /register and /login: max 10 requests per 15 minutes per IP. */
+const isDev = process.env.NODE_ENV !== "production";
+
+/**
+ * Auth rate limiter.
+ * - Development: skipped entirely (safe for Postman testing — no 429s)
+ * - Production:  max 10 req / 15 min per IP (brute-force protection)
+ */
 const authRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 10,
-  standardHeaders: true, // Return rate limit info in RateLimit-* headers
+  standardHeaders: true,
   legacyHeaders: false,
+  skip: () => isDev, // Skip rate limiting completely in development
   message: {
     statusCode: 429,
     success: false,

@@ -5,8 +5,8 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
-    "dev": "nodemon src/index.js",
-    "start": "node src/index.js"
+    "dev": "nodemon --env-file .env src/index.js",
+    "start": "node --env-file .env src/index.js"
   },
   "keywords": ["backend", "rideflow", "mysql", "express"],
   "author": "RideFlow Dev Team",

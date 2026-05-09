@@ -1,32 +1,28 @@
 /**
  * @file src/index.js
  * @description Application entry point for RideFlow backend.
- *              Loads environment variables, tests the MySQL connection,
- *              then starts the Express server. Exits immediately on DB failure.
+ *              Environment variables are loaded via --env-file .env in the npm script,
+ *              which ensures they are available before any ESM module is evaluated.
+ *              NOTE: In ESM, static imports are hoisted above all code — calling
+ *              dotenv.config() inside this file fires AFTER db/index.js already ran,
+ *              meaning the pool is created with empty env vars. --env-file avoids this.
  */
-
-import dotenv from "dotenv";
-
-// Load .env before any other imports that may reference process.env.
-dotenv.config({ path: "./.env" });
 
 import { connectDB } from "./db/index.js";
 import { app } from "./app.js";
 
-// ── Startup sequence ──────────────────────────────────────────────────────────
+// ── Startup sequence ───────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 8000;
 
 /**
  * Starts the Express server after verifying the MySQL connection is healthy.
- * If the DB is unreachable, connectDB() will call process.exit(1).
+ * If the DB is unreachable, connectDB() calls process.exit(1).
  */
 const startServer = async () => {
   try {
-    // Verify MySQL connection pool (throws + exits on failure).
     await connectDB();
 
-    // Start listening for HTTP requests only after DB is confirmed healthy.
     app.listen(PORT, () => {
       console.log(`🚀  RideFlow server running on port ${PORT}`);
       console.log(`📍  API base URL: http://localhost:${PORT}/api/v1`);

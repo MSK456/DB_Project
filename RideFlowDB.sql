@@ -132,10 +132,11 @@ CREATE TABLE Admin_Log (
     FOREIGN KEY (admin_id) REFERENCES User(user_id)
 );
 
+select * from user;
 
 
 -- Phase 1 Additions: Required for JWT-based session management
--- refresh_token: TEXT — stores JWT refresh token; set to NULL on logout.
+-- refresh_token: TEXT Â— stores JWT refresh token; set to NULL on logout.
 ALTER TABLE User ADD COLUMN refresh_token TEXT DEFAULT NULL;
--- profile_photo: VARCHAR(255) — Cloudinary CDN URL; nullable (optional at registration).
+-- profile_photo: VARCHAR(255) Â— Cloudinary CDN URL; nullable (optional at registration).
 ALTER TABLE User ADD COLUMN profile_photo VARCHAR(255) DEFAULT NULL;
