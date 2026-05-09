@@ -6,16 +6,18 @@
 
 import { Router } from "express";
 import authRouter from "./auth.routes.js";
+import driverRouter from "./driver.routes.js";
+import vehicleRouter from "./vehicle.routes.js";
+import rideRouter from "./ride.routes.js";
+import adminRouter from "./admin.routes.js";
 
 const masterRouter = Router();
 
-// ── Auth routes ──────────────────────────────────────────────────────────────
+// ── API routes ──────────────────────────────────────────────────────────────
 masterRouter.use("/auth", authRouter);
-
-// ── Future routes (Phase 2+) ─────────────────────────────────────────────────
-// masterRouter.use("/rides",    rideRouter);
-// masterRouter.use("/payments", paymentRouter);
-// masterRouter.use("/admin",    adminRouter);
-// masterRouter.use("/drivers",  driverRouter);
+masterRouter.use("/driver", driverRouter);
+masterRouter.use("/vehicles", vehicleRouter);
+masterRouter.use("/rides", rideRouter);
+masterRouter.use("/admin", adminRouter);
 
 export default masterRouter;

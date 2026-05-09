@@ -9,6 +9,7 @@
  */
 
 import { connectDB } from "./db/index.js";
+import { runDBSetup } from "./db/setup.js";
 import { app } from "./app.js";
 
 // ── Startup sequence ───────────────────────────────────────────────────────────
@@ -22,6 +23,7 @@ const PORT = process.env.PORT || 8000;
 const startServer = async () => {
   try {
     await connectDB();
+    await runDBSetup();
 
     app.listen(PORT, () => {
       console.log(`🚀  RideFlow server running on port ${PORT}`);

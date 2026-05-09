@@ -134,6 +134,10 @@ CREATE TABLE Admin_Log (
 
 select * from user;
 
+ALTER TABLE User ADD COLUMN refresh_token TEXT DEFAULT NULL;
+ALTER TABLE User ADD COLUMN profile_photo VARCHAR(255) DEFAULT NULL;
+
+
 
 -- Phase 1 Additions: Required for JWT-based session management
 -- refresh_token: TEXT  stores JWT refresh token; set to NULL on logout.

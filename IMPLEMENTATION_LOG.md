@@ -335,14 +335,67 @@ The single `/register` route uses a `validateRegistration` middleware that reads
 - Promo code management, real-time tracking (Socket.io)
 - Email verification, password reset flow
 
-**Planned for Phase 2:**
-- Ride request/acceptance flow, fare calculation
-- Admin routes (user management, driver verification)
-- SQL Aggregates (avg ratings, revenue reports)
-- SQL JOINs (ride history with user and driver details)
-- Database Views, Stored Procedures, Triggers, Events
-- DCL: GRANT/REVOKE for role-based DB permissions
-- Cloud DB deployment (PlanetScale/Railway) for bonus marks
+---
+
+## Phase 2: Driver Availability, Vehicle Management, Ride Lifecycle & DB Objects
 
 ---
-*(Future phases will be added below as Phase 2, Phase 2.1, etc.)*
+
+### Phase 2.0 — Schema Modifications & DB Objects
+
+Implemented complex database logic using raw SQL objects to ensure business integrity and performance.
+
+**Objects Implemented:**
+- **Views:** `ActiveRidesView` (live tracking), `TopDriversView` (performance monitoring).
+- **Stored Procedures:** `CalculateFare` (centralized pricing logic with surge support).
+- **Triggers:** `after_ride_status_change` (auto-archiving + trip counting), `after_rating_inserted` (auto-recalculating avg ratings + flagging low performers).
+- **Events:** `expire_promo_codes` (nightly cleanup of inactive promotions).
+- **Indexes:** Multi-column and single-column indexes on high-traffic lookup fields (`current_city`, `status`, `driver_id`).
+
+---
+
+### Phase 2.1 — Driver Availability & Profiles
+Drivers can now manage their online status and view detailed stats.
+- **Guard Logic:** Drivers must be `Verified` and have at least one `Verified` vehicle to go `Online`.
+- **Stats:** Aggregated trip counts, average ratings, and monthly earnings using SQL `SUM` and `COUNT` functions.
+
+---
+
+### Phase 2.2 — Vehicle Management
+Decoupled vehicle registration from user registration.
+- **Verification Workflow:** Admins must manually verify vehicles before they can be used for rides.
+- **Logic:** Unique license plate enforcement and strict year/make/model validation.
+
+---
+
+### Phase 2.3 — Ride Lifecycle (The Matching Engine)
+Implemented a sophisticated matching system using complex SQL JOINs.
+- **Matching Query:** Filters by `Online` status, `Verified` driver/vehicle, `Active` account, `vehicle_type`, and `current_city`. Orders by `avg_rating DESC` to ensure quality.
+- **State Machine:** `Accepted` → `Driver En Route` → `In Progress` → `Completed`.
+- **Fare Calculation:** Triggered on trip completion via `CalculateFare` stored procedure.
+
+---
+
+### Phase 2.4 — Admin Reporting (SQL Aggregates)
+Implemented dedicated endpoints for mandatory lab reports:
+- **Revenue:** `SUM(fare)` grouped by city.
+- **Trip Counts:** `COUNT(ride_id)` per driver.
+- **Quality Control:** `HAVING avg_rating < 3.5` for low-rated driver reports.
+
+---
+
+### Phase 2.5 — API Endpoints Reference (New)
+
+| Method | Endpoint | Role | Description |
+|--------|----------|------|-------------|
+| PATCH | `/api/v1/driver/availability` | Driver | Toggle Online/Offline |
+| GET | `/api/v1/driver/profile` | Driver | Fetch full profile with vehicles |
+| POST | `/api/v1/vehicles` | Driver | Register new vehicle (Pending) |
+| POST | `/api/v1/rides/request` | Rider | Request a ride (Matches Driver) |
+| PATCH | `/api/v1/rides/:id/start` | Driver | Start the trip |
+| PATCH | `/api/v1/rides/:id/complete` | Driver | End trip + Calculate fare |
+| PATCH | `/api/v1/admin/vehicles/:id/verify` | Admin | Verify/Reject vehicle |
+| GET | `/api/v1/admin/reports/revenue` | Admin | City-wise revenue report |
+
+---
+*(Phase 3 - Advanced Features & Scaling will be added below)*
