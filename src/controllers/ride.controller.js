@@ -37,7 +37,7 @@ const requestNewRide = asyncHandler(async (req, res) => {
   // 2. Match driver
   const driver = await findAvailableDriver(vehicle_type, pickup_city);
   if (!driver) {
-    throw new ApiError(503, "No drivers available in your area. Please try again shortly.");
+    throw new ApiError(503, "No drivers available in your area currently. Please try again shortly.");
   }
 
   // 3. Create Ride
