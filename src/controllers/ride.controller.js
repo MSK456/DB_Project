@@ -22,7 +22,7 @@ import {
 import { updateAvailabilityStatus } from "../models/driver.model.js";
 
 /**
- * POST /api/v1/rides/request
+ *  POST /api/v1/rides/request
  */
 const requestNewRide = asyncHandler(async (req, res) => {
   const { pickup_location, pickup_city, dropoff_location, dropoff_city, vehicle_type } = req.body;
