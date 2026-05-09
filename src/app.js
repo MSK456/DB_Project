@@ -21,6 +21,8 @@ const app = express();
 // ─────────────────────────────────────────────────────────────────────────────
 app.use(helmet());
 
+
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  CORS  — allow only the configured frontend origin
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,6 +42,16 @@ app.use(express.json({ limit: "16kb" }));
 
 // Parse URL-encoded form data (extended: true allows nested objects).
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
+
+// Debug logger (placed after parsers)
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    const hasBody = req.body && Object.keys(req.body).length > 0;
+    console.log("Body:", hasBody ? JSON.stringify(req.body, null, 2) : "(empty)");
+  }
+  next();
+});
 
 // Serve static files from the public directory (e.g., temp uploads before Cloudinary).
 app.use(express.static("public"));

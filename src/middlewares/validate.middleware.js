@@ -20,12 +20,12 @@ import { ApiError } from "../utils/ApiError.js";
  */
 const validateBody = (schema) => {
   return (req, res, next) => {
-    const { error } = schema.validate(req.body, {
-      // Report ALL validation errors at once, not just the first one.
+    // Ensure req.body is at least an empty object so schema.validate doesn't skip
+    const bodyToValidate = req.body || {};
+
+    const { error, value } = schema.validate(bodyToValidate, {
       abortEarly: false,
-      // Ignore any extra fields the client sends that are not in the schema.
       allowUnknown: true,
-      // Strip those unknown fields from req.body so they don't reach the controller.
       stripUnknown: true,
     });
 
@@ -34,6 +34,8 @@ const validateBody = (schema) => {
       return next(new ApiError(400, "Validation Error", errorMessages));
     }
 
+    // Re-assign the stripped/validated value back to req.body
+    req.body = value;
     next();
   };
 };

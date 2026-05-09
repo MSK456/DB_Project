@@ -14,6 +14,9 @@ import {
  * POST /api/v1/vehicles
  */
 const addVehicle = asyncHandler(async (req, res) => {
+  if (!req.body) {
+    throw new ApiError(400, "Request body is missing");
+  }
   const { make, model, year, color, license_plate, vehicle_type } = req.body;
   const driverId = req.user.userId;
 
