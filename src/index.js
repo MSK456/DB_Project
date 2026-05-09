@@ -1,40 +1,40 @@
-//require('dotenv').config({path: "/.env"}) 
+/**
+ * @file src/index.js
+ * @description Application entry point for RideFlow backend.
+ *              Loads environment variables, tests the MySQL connection,
+ *              then starts the Express server. Exits immediately on DB failure.
+ */
 
-import dotenv from "dotenv"
-import ConnectDB from "./db/index.js";
+import dotenv from "dotenv";
+
+// Load .env before any other imports that may reference process.env.
+dotenv.config({ path: "./.env" });
+
+import { connectDB } from "./db/index.js";
 import { app } from "./app.js";
 
+// ── Startup sequence ──────────────────────────────────────────────────────────
 
-dotenv.config({
-    path: "./.env"
-})
+const PORT = process.env.PORT || 8000;
 
-ConnectDB()
-.then(() => {
-    app.listen(process.env.PORT || 8000, () => {
-        console.log(` Server is running at port: ${process.env.PORT}`);
-    })
-})
-.catch((error) => {
-    console.log("MONGO DB connection FAILED !!!", error);
-})
+/**
+ * Starts the Express server after verifying the MySQL connection is healthy.
+ * If the DB is unreachable, connectDB() will call process.exit(1).
+ */
+const startServer = async () => {
+  try {
+    // Verify MySQL connection pool (throws + exits on failure).
+    await connectDB();
 
+    // Start listening for HTTP requests only after DB is confirmed healthy.
+    app.listen(PORT, () => {
+      console.log(`🚀  RideFlow server running on port ${PORT}`);
+      console.log(`📍  API base URL: http://localhost:${PORT}/api/v1`);
+    });
+  } catch (error) {
+    console.error("❌  Server startup failed:", error.message);
+    process.exit(1);
+  }
+};
 
-/* 
-    Connection within the main js file. (unprofessional approach)
-( async () => {
-    try {
-        await mongoose.connect(`${process.env.MONGODB_URI}/${DB_NAME}`)
-        app.on("error", ()=>{
-            console.log("ERROR: ", error);
-            throw error
-        })
-        app.listen(process.env.PORT, () => {
-            console.log(`App is listening on port ${process.env.PORT}`);
-        })
-    } catch (error) {
-        console.error("ERROR: ", error)
-        throw err
-    }
-})()
-    */
+startServer();
