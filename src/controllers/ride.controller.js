@@ -22,6 +22,7 @@ import {
 } from "../models/ride.model.js";
 import { updateAvailabilityStatus } from "../models/driver.model.js";
 import { geocodeAddress, getDrivingDistance } from "../utils/googleMapsService.js";
+import { getRiderWallet } from "../models/wallet.model.js";
 
 /**
  * Internal helper to determine surge based on proximity demand/supply
@@ -104,16 +105,48 @@ const requestNewRide = asyncHandler(async (req, res) => {
     throw new ApiError(503, "No drivers available in your area currently.");
   }
 
-  // 4. Get driving distance for initial estimation
+  // 4. Calculate or Verify Estimated Fare
+  let estimated_fare = req.body.estimated_fare;
+  
   const mapsResult = await getDrivingDistance(
     pickupGeo.lat, pickupGeo.lng,
     dropoffGeo.lat, dropoffGeo.lng
   );
-
-  // 5. Determine Surge for price transparency
   const is_surge = await determineSurge(pickupGeo.lat, pickupGeo.lng);
 
-  // 6. Create Ride with full coordinates and estimates
+  // Always re-calculate internally for deduction security
+  const distance_km = mapsResult?.distanceKm || 0;
+  const duration_minutes = mapsResult?.durationMinutes || 0;
+
+  await pool.query('CALL CalculateFare(?, ?, ?, ?, @fare)', [
+    distance_km,
+    duration_minutes,
+    vehicle_type,
+    is_surge
+  ]);
+  const [[calcResult]] = await pool.query('SELECT @fare as fare');
+  const internal_estimated_fare = calcResult.fare;
+
+  // Use internal calculation if frontend didn't provide one or provided an invalid one
+  if (!estimated_fare || estimated_fare <= 0) {
+    estimated_fare = internal_estimated_fare;
+  }
+
+  // 5. Wallet Check (Pre-authorization)
+  const wallet = await getRiderWallet(riderId);
+  if (!wallet) throw new ApiError(400, "Wallet not found. Please contact support.");
+
+  const balance = parseFloat(wallet.balance);
+  if (balance < internal_estimated_fare) {
+    throw new ApiError(402, "Insufficient wallet balance to book this ride.", {
+      message: "Insufficient wallet balance to book this ride.",
+      required: internal_estimated_fare,
+      available: balance,
+      shortfall: (internal_estimated_fare - balance).toFixed(2)
+    });
+  }
+
+  // 6. Create Ride with full coordinates and estimates (Held status)
   const rideId = await createRide({
     rider_id: riderId,
     driver_id: driver.driver_id,
@@ -126,15 +159,24 @@ const requestNewRide = asyncHandler(async (req, res) => {
     dropoff_lat: dropoffGeo.lat,
     dropoff_lng: dropoffGeo.lng,
     dropoff_city: dropoffGeo.city,
-    distance_km: mapsResult?.distanceKm || 0,
-    duration_minutes: mapsResult?.durationMinutes || 0
+    distance_km: distance_km,
+    duration_minutes: duration_minutes,
+    fare_estimated: internal_estimated_fare,
+    wallet_hold_amount: internal_estimated_fare,
+    payment_status: 'Held'
   });
 
   await updateAvailabilityStatus(driver.driver_id, 'On Trip');
 
   const rideDetails = await findRideById(rideId);
   return res.status(201).json(
-    new ApiResponse(201, { ...rideDetails, is_surge }, "Ride matched and accepted")
+    new ApiResponse(201, { 
+      ...rideDetails, 
+      is_surge,
+      wallet_balance_before: balance,
+      fare_estimated: internal_estimated_fare,
+      wallet_after_ride: (balance - internal_estimated_fare).toFixed(2)
+    }, "Ride matched and accepted")
   );
 });
 

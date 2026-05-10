@@ -93,12 +93,13 @@ const findAvailableDriversByProximity = async ({ lat, lng, vehicleType, radiusKm
   } catch (e) { throw new ApiError(500, "DB Error: findAvailableDriversByProximity — " + e.message); }
 };
 
-/** Inserts a new ride record with coordinates. */
+/** Inserts a new ride record with coordinates and wallet hold info. */
 const createRide = async ({ 
   rider_id, driver_id, vehicle_id, 
   pickup_location, pickup_lat, pickup_lng, pickup_city, 
   dropoff_location, dropoff_lat, dropoff_lng, dropoff_city,
-  distance_km = 0, duration_minutes = 0
+  distance_km = 0, duration_minutes = 0,
+  fare_estimated = 0, wallet_hold_amount = 0, payment_status = 'Pending'
 }) => {
   try {
     const [result] = await pool.execute(
@@ -107,14 +108,16 @@ const createRide = async ({
         pickup_location, pickup_lat, pickup_lng, pickup_city, 
         dropoff_location, dropoff_lat, dropoff_lng, dropoff_city, 
         distance_km, duration_minutes,
+        fare_estimated, wallet_hold_amount, payment_status,
         status
       )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Accepted')`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Accepted')`,
       [
         rider_id, driver_id, vehicle_id, 
         pickup_location, pickup_lat, pickup_lng, pickup_city, 
         dropoff_location, dropoff_lat, dropoff_lng, dropoff_city,
-        distance_km, duration_minutes
+        distance_km, duration_minutes,
+        fare_estimated, wallet_hold_amount, payment_status
       ]
     );
     return result.insertId;
