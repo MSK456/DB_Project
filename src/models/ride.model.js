@@ -124,6 +124,34 @@ const createRide = async ({
   } catch (e) { throw new ApiError(500, "DB Error: createRide — " + e.message); }
 };
 
+/** Generic status update */
+const updateRideStatus = async (rideId, status, additionalFields = {}) => {
+  try {
+    let sql = "UPDATE ride SET status = ?";
+    const params = [status];
+    
+    for (const [key, value] of Object.entries(additionalFields)) {
+      sql += `, ${key} = ?`;
+      params.push(value);
+    }
+    
+    sql += " WHERE ride_id = ?";
+    params.push(rideId);
+    
+    await pool.execute(sql, params);
+  } catch (e) { throw new ApiError(500, "DB Error: updateRideStatus — " + e.message); }
+};
+
+/** Release hold upon cancellation */
+const releaseRideHold = async (rideId) => {
+  try {
+    await pool.execute(
+      "UPDATE ride SET payment_status = 'Released', wallet_hold_amount = NULL WHERE ride_id = ?",
+      [rideId]
+    );
+  } catch (e) { throw new ApiError(500, "DB Error: releaseRideHold — " + e.message); }
+};
+
 /** Active ride for a specific rider. */
 const findActiveRideForRider = async (riderId) => {
   try {
@@ -273,4 +301,5 @@ export {
   findActiveRideForRider, findActiveRideForDriver,
   startRide, prepareRideCompletion, finalizeRide, cancelRide,
   getRiderHistory, createPayment, getAllRidesAdmin,
+  updateRideStatus, releaseRideHold
 };

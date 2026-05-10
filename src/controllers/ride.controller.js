@@ -18,11 +18,14 @@ import {
   finalizeRide,
   cancelRide,
   getRiderHistory,
-  createPayment
+  createPayment,
+  updateRideStatus,
+  releaseRideHold
 } from "../models/ride.model.js";
 import { updateAvailabilityStatus } from "../models/driver.model.js";
 import { geocodeAddress, getDrivingDistance } from "../utils/googleMapsService.js";
 import { getRiderWallet } from "../models/wallet.model.js";
+import { findDriverById } from "../models/driver.model.js";
 
 /**
  * Internal helper to determine surge based on proximity demand/supply
@@ -66,6 +69,22 @@ const determineSurge = async (lat, lng) => {
     console.error("Surge calculation error:", err);
     return false;
   }
+};
+
+/** Helper for proximity check */
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371e3; // metres
+  const φ1 = lat1 * Math.PI/180;
+  const φ2 = lat2 * Math.PI/180;
+  const Δφ = (lat2-lat1) * Math.PI/180;
+  const Δλ = (lon2-lon1) * Math.PI/180;
+
+  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  return R * c; // in metres
 };
 
 /**
@@ -201,6 +220,41 @@ const getActiveRide = asyncHandler(async (req, res) => {
 });
 
 /**
+ * PATCH /api/v1/rides/:rideId/arrive
+ */
+const handleDriverArrived = asyncHandler(async (req, res) => {
+  const { rideId } = req.params;
+  const driverId = req.user.userId;
+
+  const ride = await findRideById(rideId);
+  if (!ride || ride.driver_id !== driverId) {
+    throw new ApiError(404, "Ride not found or not assigned to you");
+  }
+
+  if (ride.status !== 'Accepted' && ride.status !== 'Driver En Route') {
+    throw new ApiError(400, "Ride must be in Accepted status to confirm arrival");
+  }
+
+  // Distance check
+  const driver = await findDriverById(driverId);
+  if (driver?.latitude && driver?.longitude) {
+    const dist = calculateDistance(driver.latitude, driver.longitude, ride.pickup_lat, ride.pickup_lng);
+    if (dist > 500) {
+      throw new ApiError(400, "You must be near the pickup location to confirm arrival. (Within 500m)");
+    }
+  }
+
+  await updateRideStatus(rideId, 'Arrived at Pickup');
+
+  return res.status(200).json(new ApiResponse(200, { 
+    ride_id: rideId, 
+    status: 'Arrived at Pickup',
+    arrived_at: new Date(),
+    message: "Rider has been notified you have arrived" 
+  }));
+});
+
+/**
  * PATCH /api/v1/rides/:rideId/start
  */
 const handleStartRide = asyncHandler(async (req, res) => {
@@ -212,13 +266,87 @@ const handleStartRide = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Ride not found or not assigned to you");
   }
 
-  if (ride.status !== 'Accepted') {
-    throw new ApiError(400, `Cannot start ride with status: ${ride.status}`);
+  if (ride.status !== 'Arrived at Pickup') {
+    throw new ApiError(400, "You must confirm arrival before starting the ride");
   }
 
-  await startRide(rideId);
+  await updateRideStatus(rideId, 'In Progress', {
+    start_time: new Date(),
+    fare_locked_at: new Date()
+  });
 
-  return res.status(200).json(new ApiResponse(200, { status: 'In Progress' }, "Trip started"));
+  return res.status(200).json(new ApiResponse(200, { 
+    ride_id: rideId,
+    status: 'In Progress', 
+    start_time: new Date(),
+    message: "Ride started. Drive safe!" 
+  }));
+});
+
+/**
+ * PATCH /api/v1/rides/:rideId/destination-reached
+ */
+const handleDestinationReached = asyncHandler(async (req, res) => {
+  const { rideId } = req.params;
+  const driverId = req.user.userId;
+
+  const ride = await findRideById(rideId);
+  if (!ride || ride.driver_id !== driverId) {
+    throw new ApiError(404, "Ride not found or not assigned to you");
+  }
+
+  if (ride.status !== 'In Progress') {
+    throw new ApiError(400, "Ride must be in progress to confirm destination reached");
+  }
+
+  // Distance check
+  const driver = await findDriverById(driverId);
+  if (driver?.latitude && driver?.longitude) {
+    const dist = calculateDistance(driver.latitude, driver.longitude, ride.dropoff_lat, ride.dropoff_lng);
+    if (dist > 300) {
+      throw new ApiError(400, "You must be near the dropoff location to confirm arrival. (Within 300m)");
+    }
+  }
+
+  // 1. Get real distance and duration
+  const mapsResult = await getDrivingDistance(
+    ride.pickup_lat, ride.pickup_lng, 
+    ride.dropoff_lat, ride.dropoff_lng
+  );
+  
+  const distance_km = mapsResult?.distanceKm || ride.distance_km;
+  const duration_minutes = mapsResult?.durationMinutes || ride.duration_minutes;
+  const is_surge = await determineSurge(ride.pickup_lat, ride.pickup_lng);
+
+  // 2. Final Fare Calculation
+  await pool.query('CALL CalculateFare(?, ?, ?, ?, @fare)', [
+    distance_km,
+    duration_minutes,
+    ride.vehicle_type,
+    is_surge
+  ]);
+  const [[calcResult]] = await pool.query('SELECT @fare as fare');
+  const finalFare = calcResult.fare;
+
+  // 3. Update Ride
+  await updateRideStatus(rideId, 'Completed', {
+    end_time: new Date(),
+    actual_distance_km: distance_km,
+    actual_duration_minutes: duration_minutes,
+    fare: finalFare
+  });
+
+  return res.status(200).json(new ApiResponse(200, {
+    ride_id: rideId,
+    status: 'Completed',
+    end_time: new Date(),
+    actual_distance_km: distance_km,
+    actual_duration_minutes: duration_minutes,
+    final_fare: finalFare,
+    fare_estimated: ride.fare_estimated,
+    fare_difference: (finalFare - ride.fare_estimated).toFixed(2),
+    message: "You have reached the destination."
+  }));
 });
 
 /**
@@ -334,22 +462,36 @@ const handleCancelRide = asyncHandler(async (req, res) => {
   const ride = await findRideById(rideId);
   if (!ride) throw new ApiError(404, "Ride not found");
 
-  // Auth check
-  if (role === 'Rider' && ride.rider_id !== userId) throw new ApiError(403, "Not your ride");
-  if (role === 'Driver' && ride.driver_id !== userId) throw new ApiError(403, "Not assigned to you");
+  // Authorization check
+  if (role === 'Rider' && ride.rider_id !== userId) throw new ApiError(403, "Not authorized to cancel this ride");
+  if (role === 'Driver' && ride.driver_id !== userId) throw new ApiError(403, "Not authorized to cancel this ride");
 
-  if (ride.status === 'In Progress' || ride.status === 'Completed' || ride.status === 'Cancelled') {
-    throw new ApiError(400, `Cannot cancel ride with status: ${ride.status}`);
+  // Status-based cancellation rules
+  if (ride.status === 'Arrived at Pickup') {
+    throw new ApiError(400, "Cannot cancel after driver has arrived. Please complete the ride or contact support.");
+  }
+  if (ride.status === 'In Progress') {
+    throw new ApiError(400, "Cannot cancel a ride that has started.");
+  }
+  if (ride.status === 'Completed' || ride.status === 'Cancelled') {
+    throw new ApiError(400, `Ride is already ${ride.status}`);
   }
 
-  await cancelRide(rideId);
+  // Handle penalty logging if driver was en route
+  if (ride.status === 'Accepted' || ride.status === 'Driver En Route') {
+    if (ride.status === 'Driver En Route') {
+      console.log(`[ADMIN LOG] Ride ${rideId} cancelled by ${role} while driver was en route.`);
+    }
+  }
 
-  // If driver was assigned, free them
+  // Action
+  await updateRideStatus(rideId, 'Cancelled');
   if (ride.driver_id) {
     await updateAvailabilityStatus(ride.driver_id, 'Online');
   }
+  await releaseRideHold(rideId);
 
-  return res.status(200).json(new ApiResponse(200, { status: 'Cancelled' }, "Ride cancelled"));
+  return res.status(200).json(new ApiResponse(200, { status: 'Cancelled' }, "Ride cancelled successfully"));
 });
 
 /**

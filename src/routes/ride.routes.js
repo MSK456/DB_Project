@@ -9,6 +9,8 @@ import {
   requestNewRide,
   getActiveRide,
   handleStartRide,
+  handleDriverArrived,
+  handleDestinationReached,
   handleCompleteRide,
   handleCancelRide,
   handleGetFareEstimate,
@@ -25,7 +27,9 @@ router.post("/estimate", authorizeRoles("Rider"), handleGetFareEstimate);
 router.get("/history", authorizeRoles("Rider"), fetchRiderHistory);
 
 // Driver only
+router.patch("/:rideId/arrive", authorizeRoles("Driver"), handleDriverArrived);
 router.patch("/:rideId/start", authorizeRoles("Driver"), handleStartRide);
+router.patch("/:rideId/destination-reached", authorizeRoles("Driver"), handleDestinationReached);
 router.patch("/:rideId/complete", authorizeRoles("Driver"), validateBody(completeRideSchema), handleCompleteRide);
 
 // Shared
