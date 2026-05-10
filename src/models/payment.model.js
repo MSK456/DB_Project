@@ -4,8 +4,20 @@
 import { pool } from "../db/index.js";
 
 const findPaymentByRideId = async (rideId) => {
-  const [rows] = await pool.execute("SELECT * FROM Payment WHERE ride_id = ?", [rideId]);
+  const [rows] = await pool.execute("SELECT * FROM payment WHERE ride_id = ?", [rideId]);
   return rows[0];
+};
+
+const createPaymentRecord = async (connection, paymentData) => {
+  const { ride_id, rider_id, amount, method, status, promo_code, discount_amount } = paymentData;
+  const [result] = await connection.execute(
+    `INSERT INTO payment (
+      ride_id, rider_id, amount, payment_method, 
+      payment_status, promo_code, discount_amount, transaction_date
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+    [ride_id, rider_id, amount, method, status, promo_code || null, discount_amount || 0]
+  );
+  return result.insertId;
 };
 
 const updatePaymentRecord = async (connection, paymentData) => {
@@ -76,6 +88,7 @@ const getAllPaymentsAdmin = async (filters = {}) => {
 
 export {
   findPaymentByRideId,
+  createPaymentRecord,
   updatePaymentRecord,
   getRiderPaymentHistory,
   getPaymentDetail,

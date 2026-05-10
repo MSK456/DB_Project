@@ -7,7 +7,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { validatePromoLogic } from "../utils/promoUtils.js";
 import { findRideById } from "../models/ride.model.js";
-import { findPaymentByRideId, updatePaymentRecord, getRiderPaymentHistory, getPaymentDetail, getAllPaymentsAdmin } from "../models/payment.model.js";
+import { findPaymentByRideId, createPaymentRecord, updatePaymentRecord, getRiderPaymentHistory, getPaymentDetail, getAllPaymentsAdmin } from "../models/payment.model.js";
 import { findPromoByCode } from "../models/promo.model.js";
 import { getRiderWallet, updateRiderBalance, updateDriverBalance, recordTransaction, getDriverWallet } from "../models/wallet.model.js";
 
@@ -170,4 +170,147 @@ const fetchAllPaymentsAdmin = asyncHandler(async (req, res) => {
   return res.status(200).json(new ApiResponse(200, payments, "All payments fetched"));
 });
 
-export { handlePayForRide, fetchMyPayments, fetchPaymentDetail, fetchAllPaymentsAdmin };
+/**
+ * POST /api/v1/payments/process-ride/:rideId
+ * Triggered by rider to finalize a completed ride payment via wallet.
+ */
+const handleProcessRidePayment = asyncHandler(async (req, res) => {
+  const { rideId } = req.params;
+  const { promo_code } = req.body;
+  const riderId = req.user.userId;
+
+  const connection = await pool.getConnection();
+  await connection.beginTransaction();
+
+  try {
+    // Step 1: Fetch ride with lock
+    const [rideRows] = await connection.execute(
+      "SELECT * FROM ride WHERE ride_id = ? AND rider_id = ? FOR UPDATE",
+      [rideId, riderId]
+    );
+    const ride = rideRows[0];
+
+    if (!ride) throw new ApiError(404, "Ride not found");
+    if (ride.status !== 'Completed') throw new ApiError(400, "Ride is not completed yet");
+    if (ride.payment_status === 'Paid') throw new ApiError(400, "This ride has already been paid");
+    if (ride.payment_status === 'Released') throw new ApiError(400, "Payment was released (ride was cancelled)");
+
+    // Step 2: Promo Calculation
+    let discountAmount = 0;
+    let finalAmount = parseFloat(ride.fare);
+    let promo = null;
+
+    if (promo_code) {
+      promo = await findPromoByCode(promo_code);
+      const promoResult = validatePromoLogic(promo, ride.fare);
+      discountAmount = promoResult.discountAmount;
+      finalAmount = promoResult.finalAmount;
+    }
+
+    // Step 3: Rider Wallet Check
+    const [walletRows] = await connection.execute(
+      "SELECT balance FROM rider_wallet WHERE rider_id = ? FOR UPDATE",
+      [riderId]
+    );
+    const wallet = walletRows[0];
+    const balance = parseFloat(wallet.balance);
+
+    if (balance < finalAmount) {
+      await connection.rollback();
+      return res.status(402).json(new ApiResponse(402, {
+        required: finalAmount,
+        available: balance,
+        shortfall: (finalAmount - balance).toFixed(2)
+      }, "Insufficient wallet balance"));
+    }
+
+    // Step 4: Deduct Rider Wallet
+    const newRiderBalance = balance - finalAmount;
+    await connection.execute(
+      "UPDATE rider_wallet SET balance = ? WHERE rider_id = ?",
+      [newRiderBalance, riderId]
+    );
+
+    await connection.execute(
+      `INSERT INTO wallet_transaction 
+       (wallet_owner_id, owner_type, txn_type, amount, balance_after, reference_id, reference_type, note)
+       VALUES (?, 'Rider', 'Debit', ?, ?, ?, 'Ride', ?)`,
+      [riderId, finalAmount, newRiderBalance, rideId, `Payment for ride #${rideId}`]
+    );
+
+    // Step 5: Driver Earnings
+    const [configRows] = await connection.execute(
+      "SELECT commission_rate FROM fare_config WHERE vehicle_type = ?",
+      [ride.vehicle_type]
+    );
+    const commissionRate = configRows[0]?.commission_rate || 0.20;
+    const driverEarning = ride.fare * (1 - commissionRate);
+    const commissionDeducted = ride.fare * commissionRate;
+
+    // Step 6: Credit Driver Wallet
+    const [dWalletRows] = await connection.execute(
+      "SELECT balance FROM wallet WHERE driver_id = ? FOR UPDATE",
+      [ride.driver_id]
+    );
+    const dWallet = dWalletRows[0];
+    const newDriverBalance = parseFloat(dWallet.balance) + driverEarning;
+
+    await connection.execute(
+      "UPDATE wallet SET balance = ? WHERE driver_id = ?",
+      [newDriverBalance, ride.driver_id]
+    );
+
+    await connection.execute(
+      `INSERT INTO wallet_transaction 
+       (wallet_owner_id, owner_type, txn_type, amount, balance_after, reference_id, reference_type, note)
+       VALUES (?, 'Driver', 'Credit', ?, ?, ?, 'Ride', ?)`,
+      [ride.driver_id, driverEarning, newDriverBalance, rideId, `Earnings for ride #${rideId}`]
+    );
+
+    // Step 7: Create Payment Record
+    const paymentId = await createPaymentRecord(connection, {
+      ride_id: rideId,
+      rider_id: riderId,
+      amount: finalAmount,
+      method: 'Wallet',
+      status: 'Paid',
+      promo_code,
+      discount_amount: discountAmount
+    });
+
+    // Step 8: Update Ride status
+    await connection.execute(
+      "UPDATE ride SET payment_status = 'Paid' WHERE ride_id = ?",
+      [rideId]
+    );
+
+    await connection.commit();
+
+    return res.status(200).json(new ApiResponse(200, {
+      payment_id: paymentId,
+      ride_id: rideId,
+      original_fare: ride.fare,
+      discount_applied: discountAmount,
+      final_amount_paid: finalAmount,
+      driver_earned: driverEarning,
+      commission_deducted: commissionDeducted,
+      rider_wallet_balance_after: newRiderBalance,
+      payment_status: 'Paid'
+    }, "Payment successful. Thank you for riding with RideFlow!"));
+
+  } catch (error) {
+    if (connection) await connection.rollback();
+    console.error("Payment Processing Error:", error);
+    throw new ApiError(error.statusCode || 500, error.message || "Payment failed. No charges were made.");
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+export { 
+  handlePayForRide, 
+  fetchMyPayments, 
+  fetchPaymentDetail, 
+  fetchAllPaymentsAdmin,
+  handleProcessRidePayment 
+};
