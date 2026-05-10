@@ -20,3 +20,15 @@ export const getRideHistory = (params) =>
 
 export const estimateFare = (data) =>
   api.post('/rides/estimate', data).then(r => r.data);
+
+export const confirmArrival = (rideId) =>
+  api.patch(`/rides/${rideId}/arrive`).then(r => r.data);
+
+export const startRide = (rideId) =>
+  api.patch(`/rides/${rideId}/start`).then(r => r.data);
+
+export const confirmDestination = (rideId) =>
+  api.patch(`/rides/${rideId}/destination-reached`).then(r => r.data);
+
+export const processRidePayment = (rideId, data = {}) =>
+  api.post(`/payments/process-ride/${rideId}`, data).then(r => r.data);

@@ -15,6 +15,7 @@ import { useApi } from '../../hooks/useApi';
 import toast from 'react-hot-toast';
 import AddressAutocomplete from '../../components/maps/AddressAutocomplete';
 import RideMap from '../../components/maps/RideMap';
+import ActiveRideTracker from '../../components/rides/ActiveRideTracker';
 
 export default function RiderDashboard() {
   const [activeTab, setActiveTab] = useState('book');
@@ -179,48 +180,7 @@ function BookRideTab({ activeRide, onBookingSuccess }) {
   if (activeRide) {
     return (
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <GlassCard level={2} style={{ padding: '40px', textAlign: 'center' }}>
-          <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--amber-ghost)', color: 'var(--amber-core)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
-            <Car size={32} className="animate-pulse" />
-          </div>
-          <Badge status={activeRide.status === 'searching' ? 'Warning' : 'Active'}>
-            {activeRide.status.toUpperCase()}
-          </Badge>
-          <h3 style={{ fontSize: '1.5rem', margin: '16px 0 8px' }}>
-            {activeRide.status === 'searching' ? 'Finding Your Driver' : `Driver ${activeRide.driver_name || 'En Route'}`}
-          </h3>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
-            {activeRide.pickup_location} → {activeRide.destination_location}
-          </p>
-          
-          <div style={{ height: '300px', marginBottom: '32px', borderRadius: '20px', overflow: 'hidden' }}>
-            <RideMap 
-              pickup={{ lat: Number(activeRide.pickup_lat), lng: Number(activeRide.pickup_lng) }}
-              dropoff={{ lat: Number(activeRide.dropoff_lat), lng: Number(activeRide.dropoff_lng) }}
-            />
-          </div>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', marginBottom: '32px', background: 'var(--bg-glass)', padding: '20px', borderRadius: '16px' }}>
-            <div>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>FARE</p>
-              <p className="font-mono" style={{ fontWeight: 700, color: 'var(--amber-core)' }}>${activeRide.fare ? parseFloat(activeRide.fare).toFixed(2) : '25.00'}</p>
-            </div>
-            <div>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>DISTANCE</p>
-              <p style={{ fontWeight: 600 }}>{activeRide.distance_km || '8.5'} km</p>
-            </div>
-            <div>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>TIME</p>
-              <p style={{ fontWeight: 600 }}>{activeRide.duration_minutes || '15'} min</p>
-            </div>
-          </div>
-          
-          {activeRide.status === 'searching' && (
-            <button className="btn-secondary" onClick={handleCancel} disabled={loading} style={{ border: '1px solid #EF4444', color: '#EF4444' }}>
-              Cancel Request
-            </button>
-          )}
-        </GlassCard>
+        <ActiveRideTracker activeRide={activeRide} onPaymentSuccess={onBookingSuccess} />
       </motion.div>
     );
   }

@@ -16,6 +16,7 @@ import { GlassCard, Badge, Spinner, Button, Input } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
 import toast from 'react-hot-toast';
 import RideMap from '../../components/maps/RideMap';
+import ActiveRidePanel from '../../components/rides/ActiveRidePanel';
 
 export default function DriverDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -206,82 +207,11 @@ function OverviewTab({ stats, isActive, activeRide }) {
 }
 
 function ActiveRideTab({ activeRide }) {
-  const { loading, execute } = useApi();
-  const { clearRide } = useRideStore();
-
-  const handleAction = async (action) => {
-    if (action === 'start') {
-      await execute(() => rideService.startTrip(activeRide.ride_id), { successMessage: 'Trip started' });
-    } else if (action === 'complete') {
-      await execute(() => rideService.completeTrip(activeRide.ride_id, { rating: 5 }), { 
-        successMessage: 'Trip completed!',
-        onSuccess: () => clearRide()
-      });
-    }
-  };
-
   if (!activeRide) return <div style={{ textAlign: 'center', padding: '100px', color: 'var(--text-muted)' }}>No active tasks.</div>;
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-      <GlassCard level={2} style={{ padding: '40px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '40px' }}>
-          <div>
-            <Badge status="Active">{activeRide.status.toUpperCase()}</Badge>
-            <h3 style={{ fontSize: '1.5rem', marginTop: '16px' }}>Journey to {activeRide.destination_location}</h3>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <p className="label-caps" style={{ color: 'var(--amber-core)' }}>Est. Fare</p>
-            <h3 className="font-mono">${activeRide.fare ? parseFloat(activeRide.fare).toFixed(2) : '25.00'}</h3>
-          </div>
-        </div>
-        
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '40px' }}>
-          <div style={{ background: 'var(--bg-glass)', padding: '20px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ color: 'var(--amber-core)' }}><Navigation size={20} /></div>
-            <div>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>DISTANCE</p>
-              <p style={{ fontWeight: 600 }}>{activeRide.distance_km || '8.5'} km</p>
-            </div>
-          </div>
-          <div style={{ background: 'var(--bg-glass)', padding: '20px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ color: 'var(--amber-core)' }}><Clock size={20} /></div>
-            <div>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>DURATION</p>
-              <p style={{ fontWeight: 600 }}>{activeRide.duration_minutes || '15'} min</p>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ background: 'var(--bg-glass)', padding: '24px', borderRadius: '16px', marginBottom: '40px' }}>
-          <div style={{ display: 'flex', gap: '20px', marginBottom: '24px' }}>
-            <div style={{ color: 'var(--amber-core)' }}><MapPin size={20} /></div>
-            <div>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>PICKUP</p>
-              <p>{activeRide.pickup_location}</p>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '20px' }}>
-            <div style={{ color: '#22C55E' }}><Navigation size={20} /></div>
-            <div>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>DESTINATION</p>
-              <p>{activeRide.dropoff_location}</p>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ height: '350px', marginBottom: '40px', borderRadius: '20px', overflow: 'hidden' }}>
-          <RideMap 
-            pickup={{ lat: Number(activeRide.pickup_lat), lng: Number(activeRide.pickup_lng) }}
-            dropoff={{ lat: Number(activeRide.dropoff_lat), lng: Number(activeRide.dropoff_lng) }}
-          />
-        </div>
-        <div style={{ display: 'flex', gap: '20px' }}>
-          {activeRide.status === 'accepted' && <button className="btn-primary" onClick={() => handleAction('start')} disabled={loading} style={{ flex: 1 }}>START TRIP</button>}
-          {activeRide.status === 'in_progress' && <button className="btn-primary" onClick={() => handleAction('complete')} disabled={loading} style={{ flex: 1 }}>COMPLETE TRIP</button>}
-          <button className="btn-secondary" style={{ flex: 1 }}>CONTACT RIDER</button>
-        </div>
-      </GlassCard>
+      <ActiveRidePanel activeRide={activeRide} />
     </motion.div>
   );
 }
