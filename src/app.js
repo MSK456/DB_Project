@@ -28,8 +28,8 @@ app.use(helmet());
 // ─────────────────────────────────────────────────────────────────────────────
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN,
-    credentials: true, // Required to send/receive httpOnly cookies cross-origin.
+    origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+    credentials: true,
   })
 );
 

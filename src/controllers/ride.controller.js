@@ -107,7 +107,11 @@ const handleStartRide = asyncHandler(async (req, res) => {
  */
 const handleCompleteRide = asyncHandler(async (req, res) => {
   const { rideId } = req.params;
-  const { distance_km, duration_minutes, is_surge = false } = req.body;
+  let { distance_km, duration_minutes, is_surge = false } = req.body;
+  
+  // Hardcoded defaults for now as requested by user
+  if (!distance_km) distance_km = 8.5; 
+  if (!duration_minutes) duration_minutes = 15;
   const driverId = req.user.userId;
 
   const ride = await findRideById(rideId);

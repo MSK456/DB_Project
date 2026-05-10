@@ -52,6 +52,8 @@ CREATE TABLE Ride (
     request_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     start_time TIMESTAMP NULL,
     end_time TIMESTAMP NULL,
+    distance_km DECIMAL(10,2) DEFAULT 0,
+    duration_minutes INT DEFAULT 0,
     fare DECIMAL(10,2) CHECK (fare >= 0),
 
     FOREIGN KEY (rider_id) REFERENCES User(user_id),
@@ -114,6 +116,42 @@ CREATE TABLE Wallet (
     driver_id INT NOT NULL UNIQUE,
     balance DECIMAL(10,2) DEFAULT 0 CHECK (balance >= 0),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (driver_id) REFERENCES Driver(driver_id)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE Rider_Wallet (
+    rider_wallet_id INT AUTO_INCREMENT PRIMARY KEY,
+    rider_id INT NOT NULL UNIQUE,
+    balance DECIMAL(10,2) DEFAULT 0 CHECK (balance >= 0),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (rider_id) REFERENCES User(user_id)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE Wallet_Transaction (
+    transaction_id INT AUTO_INCREMENT PRIMARY KEY,
+    wallet_owner_id INT NOT NULL,
+    owner_type ENUM('Rider', 'Driver') NOT NULL,
+    txn_type ENUM('TopUp', 'TripPayment', 'TripEarning', 'Payout', 'Refund') NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    balance_after DECIMAL(10,2) NOT NULL,
+    reference_id INT, -- Can be ride_id, payout_id, etc.
+    reference_type VARCHAR(50),
+    note TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE Payout_Request (
+    payout_id INT AUTO_INCREMENT PRIMARY KEY,
+    driver_id INT NOT NULL,
+    amount DECIMAL(10,2) NOT NULL CHECK (amount > 0),
+    status ENUM('Pending', 'Processed', 'Rejected') DEFAULT 'Pending',
+    admin_note TEXT,
+    requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    processed_at TIMESTAMP NULL,
 
     FOREIGN KEY (driver_id) REFERENCES Driver(driver_id)
         ON DELETE CASCADE

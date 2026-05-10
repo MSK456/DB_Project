@@ -19,6 +19,7 @@ import {
   getDriverTripCounts,
   logAdminAction
 } from "../models/admin.model.js";
+import { pool } from "../db/index.js";
 
 /**
  * PATCH /api/v1/admin/vehicles/:vehicleId/verify

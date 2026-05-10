@@ -17,11 +17,11 @@ const findRideById = async (rideId) => {
               du.full_name AS driver_name, du.phone AS driver_phone,
               d.avg_rating AS driver_rating,
               v.make, v.model, v.color, v.license_plate, v.vehicle_type
-       FROM Ride r
-       JOIN  User ru   ON r.rider_id  = ru.user_id
-       LEFT JOIN Driver d   ON r.driver_id = d.driver_id
-       LEFT JOIN User du    ON d.driver_id = du.user_id
-       LEFT JOIN Vehicle v  ON r.vehicle_id = v.vehicle_id
+       FROM ride r
+       JOIN  user ru   ON r.rider_id  = ru.user_id
+       LEFT JOIN driver d   ON r.driver_id = d.driver_id
+       LEFT JOIN user du    ON d.driver_id = du.user_id
+       LEFT JOIN vehicle v  ON r.vehicle_id = v.vehicle_id
        WHERE r.ride_id = ?`,
       [rideId]
     );
@@ -34,7 +34,7 @@ const hasActiveRide = async (riderId) => {
   try {
     const placeholders = ACTIVE_STATUSES.map(() => "?").join(",");
     const [rows] = await pool.execute(
-      `SELECT COUNT(*) AS cnt FROM Ride WHERE rider_id = ? AND status IN (${placeholders})`,
+      `SELECT COUNT(*) AS cnt FROM ride WHERE rider_id = ? AND status IN (${placeholders})`,
       [riderId, ...ACTIVE_STATUSES]
     );
     return rows[0].cnt > 0;
@@ -47,9 +47,9 @@ const findAvailableDriver = async (vehicleType, city) => {
     const [rows] = await pool.execute(
       `SELECT d.driver_id, u.full_name, d.avg_rating, d.current_city,
               v.vehicle_id, v.make, v.model, v.color, v.license_plate, v.vehicle_type
-       FROM Driver d
-       JOIN User u    ON d.driver_id = u.user_id
-       JOIN Vehicle v ON v.driver_id = d.driver_id
+       FROM driver d
+       JOIN user u    ON d.driver_id = u.user_id
+       JOIN vehicle v ON v.driver_id = d.driver_id
        WHERE d.availability_status = 'Online'
          AND d.verification_status = 'Verified'
          AND u.account_status      = 'Active'
@@ -68,7 +68,7 @@ const findAvailableDriver = async (vehicleType, city) => {
 const createRide = async ({ rider_id, driver_id, vehicle_id, pickup_location, pickup_city, dropoff_location, dropoff_city }) => {
   try {
     const [result] = await pool.execute(
-      `INSERT INTO Ride (rider_id, driver_id, vehicle_id, pickup_location, pickup_city, dropoff_location, dropoff_city, status)
+      `INSERT INTO ride (rider_id, driver_id, vehicle_id, pickup_location, pickup_city, dropoff_location, dropoff_city, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, 'Accepted')`,
       [rider_id, driver_id, vehicle_id, pickup_location, pickup_city, dropoff_location, dropoff_city]
     );
@@ -85,10 +85,10 @@ const findActiveRideForRider = async (riderId) => {
               du.full_name AS driver_name, du.phone AS driver_phone,
               d.avg_rating AS driver_rating,
               v.make, v.model, v.color, v.license_plate
-       FROM Ride r
-       LEFT JOIN Driver d  ON r.driver_id = d.driver_id
-       LEFT JOIN User du   ON d.driver_id = du.user_id
-       LEFT JOIN Vehicle v ON r.vehicle_id = v.vehicle_id
+       FROM ride r
+       LEFT JOIN driver d  ON r.driver_id = d.driver_id
+       LEFT JOIN user du   ON d.driver_id = du.user_id
+       LEFT JOIN vehicle v ON r.vehicle_id = v.vehicle_id
        WHERE r.rider_id = ? AND r.status IN (${placeholders})
        ORDER BY r.request_time DESC LIMIT 1`,
       [riderId, ...ACTIVE_STATUSES]
@@ -104,9 +104,9 @@ const findActiveRideForDriver = async (driverId) => {
       `SELECT r.*,
               ru.full_name AS rider_name, ru.phone AS rider_phone,
               v.make, v.model, v.color, v.license_plate
-       FROM Ride r
-       JOIN User ru        ON r.rider_id  = ru.user_id
-       LEFT JOIN Vehicle v ON r.vehicle_id = v.vehicle_id
+       FROM ride r
+       JOIN user ru        ON r.rider_id  = ru.user_id
+       LEFT JOIN vehicle v ON r.vehicle_id = v.vehicle_id
        WHERE r.driver_id = ? AND r.status IN ('Accepted','Driver En Route','In Progress')
        ORDER BY r.request_time DESC LIMIT 1`,
       [driverId]
@@ -119,7 +119,7 @@ const findActiveRideForDriver = async (driverId) => {
 const startRide = async (rideId) => {
   try {
     await pool.execute(
-      "UPDATE Ride SET status = 'In Progress', start_time = NOW() WHERE ride_id = ?",
+      "UPDATE ride SET status = 'In Progress', start_time = NOW() WHERE ride_id = ?",
       [rideId]
     );
   } catch (e) { throw new ApiError(500, "DB Error: startRide — " + e.message); }
@@ -129,7 +129,7 @@ const startRide = async (rideId) => {
 const prepareRideCompletion = async (rideId, distance_km, duration_minutes) => {
   try {
     await pool.execute(
-      "UPDATE Ride SET distance_km = ?, duration_minutes = ?, end_time = NOW() WHERE ride_id = ?",
+      "UPDATE ride SET distance_km = ?, duration_minutes = ?, end_time = NOW() WHERE ride_id = ?",
       [distance_km, duration_minutes, rideId]
     );
   } catch (e) { throw new ApiError(500, "DB Error: prepareRideCompletion — " + e.message); }
@@ -139,7 +139,7 @@ const prepareRideCompletion = async (rideId, distance_km, duration_minutes) => {
 const finalizeRide = async (rideId, fare) => {
   try {
     await pool.execute(
-      "UPDATE Ride SET fare = ?, status = 'Completed' WHERE ride_id = ?",
+      "UPDATE ride SET fare = ?, status = 'Completed' WHERE ride_id = ?",
       [fare, rideId]
     );
   } catch (e) { throw new ApiError(500, "DB Error: finalizeRide — " + e.message); }
@@ -149,7 +149,7 @@ const finalizeRide = async (rideId, fare) => {
 const cancelRide = async (rideId) => {
   try {
     await pool.execute(
-      "UPDATE Ride SET status = 'Cancelled' WHERE ride_id = ?",
+      "UPDATE ride SET status = 'Cancelled' WHERE ride_id = ?",
       [rideId]
     );
   } catch (e) { throw new ApiError(500, "DB Error: cancelRide — " + e.message); }
@@ -159,21 +159,21 @@ const cancelRide = async (rideId) => {
 const getRiderHistory = async (riderId, page = 1, limit = 10) => {
   const offset = (page - 1) * limit;
   try {
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       `SELECT r.*,
               du.full_name AS driver_name,
               v.make, v.model, v.license_plate, v.vehicle_type
-       FROM Ride r
-       LEFT JOIN Driver d  ON r.driver_id = d.driver_id
-       LEFT JOIN User du   ON d.driver_id = du.user_id
-       LEFT JOIN Vehicle v ON r.vehicle_id = v.vehicle_id
+       FROM ride r
+       LEFT JOIN driver d  ON r.driver_id = d.driver_id
+       LEFT JOIN user du   ON d.driver_id = du.user_id
+       LEFT JOIN vehicle v ON r.vehicle_id = v.vehicle_id
        WHERE r.rider_id = ? AND r.status IN ('Completed','Cancelled')
        ORDER BY r.end_time DESC
        LIMIT ? OFFSET ?`,
-      [riderId, limit, offset]
+      [riderId, Number(limit), Number(offset)]
     );
     const [[{ total }]] = await pool.execute(
-      "SELECT COUNT(*) AS total FROM Ride WHERE rider_id = ? AND status IN ('Completed','Cancelled')",
+      "SELECT COUNT(*) AS total FROM ride WHERE rider_id = ? AND status IN ('Completed','Cancelled')",
       [riderId]
     );
     return { rides: rows, total, page, limit };
@@ -184,7 +184,7 @@ const getRiderHistory = async (riderId, page = 1, limit = 10) => {
 const createPayment = async ({ ride_id, rider_id, amount, payment_method = "Cash" }) => {
   try {
     await pool.execute(
-      "INSERT INTO Payment (ride_id, rider_id, amount, payment_method) VALUES (?, ?, ?, ?)",
+      "INSERT INTO payment (ride_id, rider_id, amount, payment_method) VALUES (?, ?, ?, ?)",
       [ride_id, rider_id, amount, payment_method]
     );
   } catch (e) { throw new ApiError(500, "DB Error: createPayment — " + e.message); }
@@ -206,11 +206,11 @@ const getAllRidesAdmin = async ({ status, city, from, to } = {}) => {
               ru.full_name AS rider_name, ru.phone AS rider_phone,
               du.full_name AS driver_name, du.phone AS driver_phone,
               v.make, v.model, v.license_plate, v.vehicle_type
-       FROM Ride r
-       JOIN User ru        ON r.rider_id  = ru.user_id
-       LEFT JOIN Driver d  ON r.driver_id = d.driver_id
-       LEFT JOIN User du   ON d.driver_id = du.user_id
-       LEFT JOIN Vehicle v ON r.vehicle_id = v.vehicle_id
+       FROM ride r
+       JOIN user ru        ON r.rider_id  = ru.user_id
+       LEFT JOIN driver d  ON r.driver_id = d.driver_id
+       LEFT JOIN user du   ON d.driver_id = du.user_id
+       LEFT JOIN vehicle v ON r.vehicle_id = v.vehicle_id
        ${where}
        ORDER BY r.request_time DESC`,
       params

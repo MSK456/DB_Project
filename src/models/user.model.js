@@ -24,7 +24,7 @@ import { ApiError } from "../utils/ApiError.js";
 const findUserByEmail = async (email) => {
   try {
     const [rows] = await pool.execute(
-      "SELECT * FROM User WHERE email = ? LIMIT 1",
+      "SELECT * FROM user WHERE email = ? LIMIT 1",
       [email]
     );
     return rows[0] || null;
@@ -42,7 +42,7 @@ const findUserByEmail = async (email) => {
 const findUserByPhone = async (phone) => {
   try {
     const [rows] = await pool.execute(
-      "SELECT * FROM User WHERE phone = ? LIMIT 1",
+      "SELECT * FROM user WHERE phone = ? LIMIT 1",
       [phone]
     );
     return rows[0] || null;
@@ -60,7 +60,7 @@ const findUserByPhone = async (phone) => {
 const findUserById = async (userId) => {
   try {
     const [rows] = await pool.execute(
-      "SELECT * FROM User WHERE user_id = ? LIMIT 1",
+      "SELECT * FROM user WHERE user_id = ? LIMIT 1",
       [userId]
     );
     return rows[0] || null;
@@ -79,7 +79,7 @@ const findUserById = async (userId) => {
 const findUserByRefreshToken = async (token) => {
   try {
     const [rows] = await pool.execute(
-      "SELECT * FROM User WHERE refresh_token = ? LIMIT 1",
+      "SELECT * FROM user WHERE refresh_token = ? LIMIT 1",
       [token]
     );
     return rows[0] || null;
@@ -100,7 +100,7 @@ const findUserByRefreshToken = async (token) => {
 const findDriverByLicense = async (licenseNumber) => {
   try {
     const [rows] = await pool.execute(
-      "SELECT * FROM Driver WHERE license_number = ? LIMIT 1",
+      "SELECT * FROM driver WHERE license_number = ? LIMIT 1",
       [licenseNumber]
     );
     return rows[0] || null;
@@ -121,7 +121,7 @@ const findDriverByLicense = async (licenseNumber) => {
 const findDriverByCnic = async (cnic) => {
   try {
     const [rows] = await pool.execute(
-      "SELECT * FROM Driver WHERE cnic = ? LIMIT 1",
+      "SELECT * FROM driver WHERE cnic = ? LIMIT 1",
       [cnic]
     );
     return rows[0] || null;
@@ -150,7 +150,7 @@ const createUser = async ({
 }) => {
   try {
     const [result] = await pool.execute(
-      `INSERT INTO User (full_name, email, phone, password_hash, role, profile_photo)
+      `INSERT INTO user (full_name, email, phone, password_hash, role, profile_photo)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [full_name, email, phone, password_hash, role, profile_photo]
     );
@@ -175,7 +175,7 @@ const createDriverProfile = async ({
 }) => {
   try {
     await pool.execute(
-      `INSERT INTO Driver (driver_id, license_number, cnic, profile_photo)
+      `INSERT INTO driver (driver_id, license_number, cnic, profile_photo)
        VALUES (?, ?, ?, ?)`,
       [driver_id, license_number, cnic, profile_photo]
     );
@@ -195,7 +195,7 @@ const createDriverProfile = async ({
  */
 const createWallet = async (driverId) => {
   try {
-    await pool.execute("INSERT INTO Wallet (driver_id, balance) VALUES (?, 0)", [
+    await pool.execute("INSERT INTO wallet (driver_id, balance) VALUES (?, 0)", [
       driverId,
     ]);
   } catch (error) {
@@ -213,7 +213,7 @@ const createWallet = async (driverId) => {
 const updateRefreshToken = async (userId, token) => {
   try {
     await pool.execute(
-      "UPDATE User SET refresh_token = ? WHERE user_id = ?",
+      "UPDATE user SET refresh_token = ? WHERE user_id = ?",
       [token, userId]
     );
   } catch (error) {
@@ -233,7 +233,7 @@ const updateRefreshToken = async (userId, token) => {
 const clearRefreshToken = async (userId) => {
   try {
     await pool.execute(
-      "UPDATE User SET refresh_token = NULL WHERE user_id = ?",
+      "UPDATE user SET refresh_token = NULL WHERE user_id = ?",
       [userId]
     );
   } catch (error) {

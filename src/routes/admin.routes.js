@@ -9,11 +9,13 @@ import {
   verifyVehicle,
   fetchPendingVehicles,
   fetchAllRides,
-  reportRiderCompleted,
-  reportDriversByCity,
-  reportRevenue,
-  reportLowRatedDrivers,
-  reportDriverTripCounts
+  reportRevenueByCity,
+  reportRevenueByMethod,
+  reportDriverEarnings,
+  reportLowRatedDriversFull,
+  reportTripCountsFull,
+  reportAllRiders,
+  reportPromoUsage
 } from "../controllers/admin.controller.js";
 
 const router = Router();

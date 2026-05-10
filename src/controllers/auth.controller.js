@@ -35,6 +35,7 @@ import {
   clearRefreshToken,
 } from "../models/user.model.js";
 import { USER_ROLES, ACCOUNT_STATUS } from "../constants.js";
+import { pool } from "../db/index.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  COOKIE OPTIONS
@@ -175,9 +176,6 @@ const registerUser = asyncHandler(async (req, res) => {
       profile_photo,
     });
     await createWallet(userId);
-  } else if (role === USER_ROLES.RIDER) {
-    // Phase 3: Create Rider Wallet
-    await pool.execute("INSERT INTO Rider_Wallet (rider_id) VALUES (?)", [userId]);
   }
 
   // ── 10. Generate tokens ───────────────────────────────────────────────────

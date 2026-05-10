@@ -48,7 +48,7 @@ const handleTopup = asyncHandler(async (req, res) => {
 
   try {
     await updateRiderBalance(connection, riderId, amount);
-    const [rows] = await connection.execute("SELECT balance FROM Rider_Wallet WHERE rider_id = ?", [riderId]);
+    const [rows] = await connection.execute("SELECT balance FROM rider_wallet WHERE rider_id = ?", [riderId]);
     const newBalance = rows[0].balance;
 
     await recordTransaction(connection, {
@@ -124,7 +124,7 @@ const handleProcessPayout = asyncHandler(async (req, res) => {
     }
 
     await updateDriverBalance(connection, payout.driver_id, -payout.amount);
-    const [rows] = await connection.execute("SELECT balance FROM Wallet WHERE driver_id = ?", [payout.driver_id]);
+    const [rows] = await connection.execute("SELECT balance FROM wallet WHERE driver_id = ?", [payout.driver_id]);
     const newBalance = rows[0].balance;
 
     await recordTransaction(connection, {
