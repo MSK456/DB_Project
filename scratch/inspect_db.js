@@ -1,11 +1,11 @@
 import 'dotenv/config';
 import { pool } from '../src/db/index.js';
 
-async function checkColumns() {
+async function cleanupTriggers() {
   try {
-    const [columns] = await pool.query("SHOW COLUMNS FROM vehicle");
-    console.log("Columns in 'vehicle' table:");
-    console.table(columns);
+    console.log("Dropping redundant trigger 'after_ride_status_change'...");
+    await pool.query("DROP TRIGGER IF EXISTS after_ride_status_change");
+    console.log("Trigger dropped.");
 
     process.exit(0);
   } catch (err) {
@@ -14,4 +14,4 @@ async function checkColumns() {
   }
 }
 
-checkColumns();
+cleanupTriggers();

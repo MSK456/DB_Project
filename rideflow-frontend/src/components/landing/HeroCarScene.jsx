@@ -58,7 +58,7 @@ export default function HeroCarScene() {
         style={{
           position: 'absolute',
           right: '-15%', // Pushed further right to clear space for text
-          top: '20%',   
+          top: '80px',   
           width: '95%',  // Maximum impact for full-width layout
           height: 'auto',
           objectFit: 'contain',

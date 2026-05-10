@@ -41,7 +41,7 @@ export default function Landing() {
       <Navbar />
 
       {/* ── HERO SECTION ────────────────────────────────────────── */}
-      <section style={{ position: 'relative', height: '100vh', display: 'flex', alignItems: 'center', paddingTop: '80px' }}>
+      <section style={{ position: 'relative', height: '100vh', display: 'flex', alignItems: 'center' }}>
         <HeroCarScene />
         <div className="container" style={{ position: 'relative', zIndex: 100, width: '100%' }}>
           <div style={{ maxWidth: '720px', textAlign: 'left' }}>
@@ -58,10 +58,7 @@ export default function Landing() {
             </motion.div>
           </div>
         </div>
-        <div style={{ position: 'absolute', bottom: '60px', left: '20px', display: 'flex', flexDirection: 'column', gap: '24px', alignItems: 'center', color: 'var(--text-muted)', zIndex: 100 }}>
-          <div style={{ width: '1px', height: '120px', background: 'linear-gradient(to bottom, var(--amber-core), transparent)' }} />
-          <span style={{ writingMode: 'vertical-rl', fontSize: '9px', letterSpacing: '0.4em', textTransform: 'uppercase', fontWeight: 700 }}>EXPLORE</span>
-        </div>
+
       </section>
 
       {/* ── THE RIDEFLOW METHOD ─────────────────────────────────── */}

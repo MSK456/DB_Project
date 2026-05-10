@@ -9,7 +9,8 @@ import {
   toggleAvailability,
   fetchDriverProfile,
   fetchDriverStats,
-  handleUpdateLocation
+  handleUpdateLocation,
+  fetchDriverEarnings
 } from "../controllers/driver.controller.js";
 
 const router = Router();

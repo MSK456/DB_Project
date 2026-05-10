@@ -375,6 +375,8 @@ const handleDestinationReached = asyncHandler(async (req, res) => {
     fare: finalFare
   });
 
+  await updateAvailabilityStatus(driverId, 'Online');
+
   const updatedRide = await findRideById(rideId);
   return res.status(200).json(new ApiResponse(200, formatRideResponse(updatedRide), "You have reached the destination."));
 });

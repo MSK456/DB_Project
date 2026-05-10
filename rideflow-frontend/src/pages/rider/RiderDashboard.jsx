@@ -5,6 +5,7 @@ import {
   Car, MapPin, Navigation, Clock, CreditCard, History, Settings, LogOut, 
   Search, Shield, Star, Wallet, ArrowRight, Zap, Bell, CheckCircle, X
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import useAuthStore from '../../store/authStore';
 import useRideStore from '../../store/rideStore';
 import * as authService from '../../services/authService';
@@ -69,10 +70,10 @@ export default function RiderDashboard() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-void)' }}>
       <aside style={{ width: '280px', background: 'var(--bg-deep)', borderRight: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', padding: '40px 20px', position: 'fixed', height: '100vh', zIndex: 50 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '60px', paddingLeft: '20px' }}>
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '60px', paddingLeft: '20px', textDecoration: 'none', color: 'inherit' }}>
           <Zap size={22} color="var(--amber-core)" fill="var(--amber-core)" />
           <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.1rem', letterSpacing: '0.05em' }}>RIDEFLOW</span>
-        </div>
+        </Link>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {[
             { id: 'book', label: 'Book Ride', icon: Navigation },
@@ -164,6 +165,14 @@ function BookRideTab({ activeRide, onBookingSuccess }) {
       successMessage: 'Searching for nearby drivers...',
       onSuccess: (data) => {
         setActiveRide(data.data);
+        setForm({ 
+          pickup: '', 
+          pickupCoords: null,
+          destination: '', 
+          destinationCoords: null,
+          vehicle_type: 'Standard' 
+        });
+        setEstimation(null);
         onBookingSuccess();
       }
     });

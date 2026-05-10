@@ -89,7 +89,7 @@ export default function ActiveRideTracker({ activeRide, onPaymentSuccess }) {
             </div>
           </div>
 
-          <Button block onClick={() => { clearRide(); window.location.reload(); }}>Back to Home</Button>
+          <Button block onClick={() => clearRide()}>Back to Home</Button>
         </GlassCard>
       </motion.div>
     );
@@ -260,7 +260,7 @@ export default function ActiveRideTracker({ activeRide, onPaymentSuccess }) {
               <p style={{ color: 'var(--text-muted)', marginBottom: '32px', maxWidth: '300px', margin: '0 auto 32px' }}>
                 This ride has been cancelled. If you were charged a hold amount, it has been released back to your wallet.
               </p>
-              <Button block onClick={() => { clearRide(); window.location.reload(); }}>
+              <Button block onClick={() => clearRide()}>
                 Book Another Ride
               </Button>
             </GlassCard>

@@ -10,7 +10,8 @@ import {
   updateAvailabilityStatus,
   getDriverProfile,
   getDriverStats,
-  updateDriverLocation
+  updateDriverLocation,
+  getDriverEarnings
 } from "../models/driver.model.js";
 
 /**

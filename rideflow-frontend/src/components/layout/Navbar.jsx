@@ -37,13 +37,13 @@ export default function Navbar() {
       left: 0,
       right: 0,
       zIndex: 1000,
-      height: '100px',
+      height: '80px',
       display: 'flex',
       alignItems: 'center',
       transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
       background: scrolled ? 'rgba(5, 5, 8, 0.9)' : 'transparent',
       backdropFilter: scrolled ? 'blur(20px)' : 'none',
-      borderBottom: scrolled ? '1px solid rgba(255, 255, 255, 0.05)' : 'none'
+      borderBottom: 'none'
     }}>
       <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', maxWidth: '1800px' }}>
         
