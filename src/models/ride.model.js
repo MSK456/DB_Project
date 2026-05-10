@@ -6,23 +6,32 @@
 import { pool } from "../db/index.js";
 import { ApiError } from "../utils/ApiError.js";
 
-const ACTIVE_STATUSES = ["Requested", "Accepted", "Driver En Route", "In Progress"];
+const ACTIVE_STATUSES = ["Requested", "Accepted", "Driver En Route", "Arrived at Pickup", "In Progress"];
+
+/** Shared SELECT fragment for consistent ride responses */
+const RIDE_DETAILS_SELECT = `
+  r.*,
+  ru.full_name AS rider_name, ru.phone AS rider_phone,
+  du.full_name AS driver_name, du.phone AS driver_phone,
+  d.avg_rating AS driver_rating, d.total_trips AS driver_total_trips,
+  d.verification_status AS driver_verification_status,
+  d.latitude AS driver_lat, d.longitude AS driver_lng,
+  v.make AS vehicle_make, v.model AS vehicle_model, v.year AS vehicle_year,
+  v.color AS vehicle_color, v.license_plate AS vehicle_plate, v.vehicle_type AS vehicle_type
+`;
+
+const RIDE_DETAILS_JOINS = `
+  JOIN user ru ON r.rider_id = ru.user_id
+  LEFT JOIN driver d ON r.driver_id = d.driver_id
+  LEFT JOIN user du ON d.driver_id = du.user_id
+  LEFT JOIN vehicle v ON r.vehicle_id = v.vehicle_id
+`;
 
 /** Full ride row with all participant + vehicle joins. */
 const findRideById = async (rideId) => {
   try {
     const [rows] = await pool.execute(
-      `SELECT r.*,
-              ru.full_name AS rider_name, ru.phone AS rider_phone,
-              du.full_name AS driver_name, du.phone AS driver_phone,
-              d.avg_rating AS driver_rating,
-              v.make, v.model, v.color, v.license_plate, v.vehicle_type
-       FROM ride r
-       JOIN  user ru   ON r.rider_id  = ru.user_id
-       LEFT JOIN driver d   ON r.driver_id = d.driver_id
-       LEFT JOIN user du    ON d.driver_id = du.user_id
-       LEFT JOIN vehicle v  ON r.vehicle_id = v.vehicle_id
-       WHERE r.ride_id = ?`,
+      `SELECT ${RIDE_DETAILS_SELECT} FROM ride r ${RIDE_DETAILS_JOINS} WHERE r.ride_id = ?`,
       [rideId]
     );
     return rows[0] || null;
@@ -157,16 +166,7 @@ const findActiveRideForRider = async (riderId) => {
   try {
     const placeholders = ACTIVE_STATUSES.map(() => "?").join(",");
     const [rows] = await pool.execute(
-      `SELECT r.*,
-              du.full_name AS driver_name, du.phone AS driver_phone,
-              d.avg_rating AS driver_rating,
-              v.make, v.model, v.color, v.license_plate
-       FROM ride r
-       LEFT JOIN driver d  ON r.driver_id = d.driver_id
-       LEFT JOIN user du   ON d.driver_id = du.user_id
-       LEFT JOIN vehicle v ON r.vehicle_id = v.vehicle_id
-       WHERE r.rider_id = ? AND r.status IN (${placeholders})
-       ORDER BY r.request_time DESC LIMIT 1`,
+      `SELECT ${RIDE_DETAILS_SELECT} FROM ride r ${RIDE_DETAILS_JOINS} WHERE r.rider_id = ? AND r.status IN (${placeholders}) ORDER BY r.request_time DESC LIMIT 1`,
       [riderId, ...ACTIVE_STATUSES]
     );
     return rows[0] || null;
@@ -176,16 +176,10 @@ const findActiveRideForRider = async (riderId) => {
 /** Active ride assigned to a specific driver. */
 const findActiveRideForDriver = async (driverId) => {
   try {
+    const placeholders = ACTIVE_STATUSES.map(() => "?").join(",");
     const [rows] = await pool.execute(
-      `SELECT r.*,
-              ru.full_name AS rider_name, ru.phone AS rider_phone,
-              v.make, v.model, v.color, v.license_plate
-       FROM ride r
-       JOIN user ru        ON r.rider_id  = ru.user_id
-       LEFT JOIN vehicle v ON r.vehicle_id = v.vehicle_id
-       WHERE r.driver_id = ? AND r.status IN ('Accepted','Driver En Route','In Progress')
-       ORDER BY r.request_time DESC LIMIT 1`,
-      [driverId]
+      `SELECT ${RIDE_DETAILS_SELECT} FROM ride r ${RIDE_DETAILS_JOINS} WHERE r.driver_id = ? AND r.status IN (${placeholders}) ORDER BY r.request_time DESC LIMIT 1`,
+      [driverId, ...ACTIVE_STATUSES]
     );
     return rows[0] || null;
   } catch (e) { throw new ApiError(500, "DB Error: findActiveRideForDriver — " + e.message); }

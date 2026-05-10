@@ -87,6 +87,54 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return R * c; // in metres
 };
 
+/** Shared helper to format ride response with nested objects */
+const formatRideResponse = (ride) => {
+  if (!ride) return null;
+  return {
+    ride_id: ride.ride_id,
+    status: ride.status,
+    pickup_location: ride.pickup_location,
+    pickup_lat: ride.pickup_lat,
+    pickup_lng: ride.pickup_lng,
+    dropoff_location: ride.dropoff_location,
+    dropoff_lat: ride.dropoff_lat,
+    dropoff_lng: ride.dropoff_lng,
+    request_time: ride.request_time,
+    start_time: ride.start_time,
+    end_time: ride.end_time,
+    fare_estimated: ride.fare_estimated,
+    final_fare: ride.fare,
+    payment_status: ride.payment_status,
+    actual_distance_km: ride.actual_distance_km,
+    actual_duration_minutes: ride.actual_duration_minutes,
+    
+    driver: ride.driver_id ? {
+      driver_id: ride.driver_id,
+      name: ride.driver_name,
+      phone: ride.driver_phone,
+      rating: ride.driver_rating,
+      total_trips: ride.driver_total_trips,
+      lat: ride.driver_lat,
+      lng: ride.driver_lng,
+    } : null,
+    
+    vehicle: ride.vehicle_id ? {
+      make: ride.vehicle_make,
+      model: ride.vehicle_model,
+      year: ride.vehicle_year,
+      color: ride.vehicle_color,
+      plate: ride.vehicle_plate,
+      type: ride.vehicle_type,
+    } : null,
+    
+    rider: {
+      rider_id: ride.rider_id,
+      name: ride.rider_name,
+      phone: ride.rider_phone,
+    }
+  };
+};
+
 /**
  *  POST /api/v1/rides/request
  */
@@ -190,10 +238,9 @@ const requestNewRide = asyncHandler(async (req, res) => {
   const rideDetails = await findRideById(rideId);
   return res.status(201).json(
     new ApiResponse(201, { 
-      ...rideDetails, 
+      ...formatRideResponse(rideDetails), 
       is_surge,
       wallet_balance_before: balance,
-      fare_estimated: internal_estimated_fare,
       wallet_after_ride: (balance - internal_estimated_fare).toFixed(2)
     }, "Ride matched and accepted")
   );
@@ -216,7 +263,7 @@ const getActiveRide = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, null, "No active ride found"));
   }
 
-  return res.status(200).json(new ApiResponse(200, ride, "Active ride fetched successfully"));
+  return res.status(200).json(new ApiResponse(200, formatRideResponse(ride), "Active ride fetched successfully"));
 });
 
 /**
@@ -246,12 +293,8 @@ const handleDriverArrived = asyncHandler(async (req, res) => {
 
   await updateRideStatus(rideId, 'Arrived at Pickup');
 
-  return res.status(200).json(new ApiResponse(200, { 
-    ride_id: rideId, 
-    status: 'Arrived at Pickup',
-    arrived_at: new Date(),
-    message: "Rider has been notified you have arrived" 
-  }));
+  const updatedRide = await findRideById(rideId);
+  return res.status(200).json(new ApiResponse(200, formatRideResponse(updatedRide), "Driver arrived at pickup"));
 });
 
 /**
@@ -275,12 +318,8 @@ const handleStartRide = asyncHandler(async (req, res) => {
     fare_locked_at: new Date()
   });
 
-  return res.status(200).json(new ApiResponse(200, { 
-    ride_id: rideId,
-    status: 'In Progress', 
-    start_time: new Date(),
-    message: "Ride started. Drive safe!" 
-  }));
+  const updatedRide = await findRideById(rideId);
+  return res.status(200).json(new ApiResponse(200, formatRideResponse(updatedRide), "Ride started. Drive safe!"));
 });
 
 /**
@@ -336,17 +375,8 @@ const handleDestinationReached = asyncHandler(async (req, res) => {
     fare: finalFare
   });
 
-  return res.status(200).json(new ApiResponse(200, {
-    ride_id: rideId,
-    status: 'Completed',
-    end_time: new Date(),
-    actual_distance_km: distance_km,
-    actual_duration_minutes: duration_minutes,
-    final_fare: finalFare,
-    fare_estimated: ride.fare_estimated,
-    fare_difference: (finalFare - ride.fare_estimated).toFixed(2),
-    message: "You have reached the destination."
-  }));
+  const updatedRide = await findRideById(rideId);
+  return res.status(200).json(new ApiResponse(200, formatRideResponse(updatedRide), "You have reached the destination."));
 });
 
 /**
