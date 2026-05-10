@@ -15,7 +15,7 @@ import { ApiError } from "../utils/ApiError.js";
 const findDriverById = async (driverId) => {
   try {
     const [rows] = await pool.execute(
-      "SELECT * FROM Driver WHERE driver_id = ? LIMIT 1",
+      "SELECT * FROM driver WHERE driver_id = ? LIMIT 1",
       [driverId]
     );
     return rows[0] || null;
@@ -32,7 +32,7 @@ const findDriverById = async (driverId) => {
 const hasVerifiedVehicle = async (driverId) => {
   try {
     const [rows] = await pool.execute(
-      `SELECT COUNT(*) AS cnt FROM Vehicle
+      `SELECT COUNT(*) AS cnt FROM vehicle
        WHERE driver_id = ? AND verification_status = 'Verified'`,
       [driverId]
     );
@@ -53,12 +53,12 @@ const updateAvailabilityStatus = async (driverId, status, city = null) => {
   try {
     if (city) {
       await pool.execute(
-        "UPDATE Driver SET availability_status = ?, current_city = ? WHERE driver_id = ?",
+        "UPDATE driver SET availability_status = ?, current_city = ? WHERE driver_id = ?",
         [status, city, driverId]
       );
     } else {
       await pool.execute(
-        "UPDATE Driver SET availability_status = ? WHERE driver_id = ?",
+        "UPDATE driver SET availability_status = ? WHERE driver_id = ?",
         [status, driverId]
       );
     }
@@ -78,15 +78,15 @@ const getDriverProfile = async (driverId) => {
       `SELECT d.*, u.full_name, u.email, u.phone, u.profile_photo,
               u.account_status, u.registration_date,
               w.balance AS wallet_balance
-       FROM Driver d
-       JOIN User u ON d.driver_id = u.user_id
-       LEFT JOIN Wallet w ON w.driver_id = d.driver_id
+       FROM driver d
+       JOIN user u ON d.driver_id = u.user_id
+       LEFT JOIN wallet w ON w.driver_id = d.driver_id
        WHERE d.driver_id = ?`,
       [driverId]
     );
 
     const [vehicles] = await pool.execute(
-      "SELECT * FROM Vehicle WHERE driver_id = ?",
+      "SELECT * FROM vehicle WHERE driver_id = ?",
       [driverId]
     );
 
@@ -109,14 +109,14 @@ const getDriverStats = async (driverId) => {
               d.availability_status, d.verification_status,
               w.balance AS wallet_balance,
               COALESCE(SUM(p.amount), 0) AS earnings_this_month
-       FROM Driver d
-       LEFT JOIN Wallet w ON w.driver_id = d.driver_id
-       LEFT JOIN Ride r
+       FROM driver d
+       LEFT JOIN wallet w ON w.driver_id = d.driver_id
+       LEFT JOIN ride r
          ON r.driver_id = d.driver_id
          AND r.status = 'Completed'
          AND MONTH(r.end_time) = MONTH(CURDATE())
          AND YEAR(r.end_time)  = YEAR(CURDATE())
-       LEFT JOIN Payment p ON p.ride_id = r.ride_id
+       LEFT JOIN payment p ON p.ride_id = r.ride_id
          AND p.payment_status = 'Paid'
        WHERE d.driver_id = ?
        GROUP BY d.driver_id, w.balance`,
@@ -128,10 +128,28 @@ const getDriverStats = async (driverId) => {
   }
 };
 
+/**
+ * Updates a driver's lat/lng coordinates and location_updated_at.
+ * @param {number} driverId
+ * @param {number} lat
+ * @param {number} lng
+ */
+const updateDriverLocation = async (driverId, lat, lng) => {
+  try {
+    await pool.execute(
+      "UPDATE driver SET latitude = ?, longitude = ?, location_updated_at = NOW() WHERE driver_id = ?",
+      [lat, lng, driverId]
+    );
+  } catch (error) {
+    throw new ApiError(500, "DB Error: updateDriverLocation — " + error.message);
+  }
+};
+
 export {
   findDriverById,
   hasVerifiedVehicle,
   updateAvailabilityStatus,
+  updateDriverLocation,
   getDriverProfile,
   getDriverStats,
 };

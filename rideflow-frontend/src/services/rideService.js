@@ -18,5 +18,5 @@ export const cancelRide = (rideId) =>
 export const getRideHistory = (params) =>
   api.get('/rides/history', { params }).then(r => r.data);
 
-export const estimateFare = (params) =>
-  api.get('/rides/estimate', { params }).then(r => r.data);
+export const estimateFare = (data) =>
+  api.post('/rides/estimate', data).then(r => r.data);

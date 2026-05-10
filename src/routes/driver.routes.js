@@ -8,7 +8,8 @@ import { updateAvailabilitySchema } from "../validators/driver.validators.js";
 import {
   toggleAvailability,
   fetchDriverProfile,
-  fetchDriverStats
+  fetchDriverStats,
+  handleUpdateLocation
 } from "../controllers/driver.controller.js";
 
 const router = Router();
@@ -19,5 +20,6 @@ router.use(verifyJWT, authorizeRoles("Driver"));
 router.patch("/availability", validateBody(updateAvailabilitySchema), toggleAvailability);
 router.get("/profile", fetchDriverProfile);
 router.get("/stats", fetchDriverStats);
+router.patch("/location", handleUpdateLocation);
 
 export default router;

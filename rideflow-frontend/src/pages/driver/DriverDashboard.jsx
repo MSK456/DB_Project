@@ -15,6 +15,7 @@ import * as vehicleService from '../../services/vehicleService';
 import { GlassCard, Badge, Spinner, Button, Input } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
 import toast from 'react-hot-toast';
+import RideMap from '../../components/maps/RideMap';
 
 export default function DriverDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -48,14 +49,34 @@ export default function DriverDashboard() {
     setIsActive(user?.account_status === 'Active'); // Simplified for now
   }, [fetchStats, fetchVehicles, user]);
 
+  // Driver Location Tracking
+  useEffect(() => {
+    if (!isActive) return;
+
+    const updateDriverPos = () => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+          driverService.updateLocation(coords).catch(console.error);
+        },
+        (err) => console.error("Geolocation error:", err),
+        { enableHighAccuracy: true }
+      );
+    };
+
+    updateDriverPos(); // Initial
+    const interval = setInterval(updateDriverPos, 15000); // Every 15s
+    return () => clearInterval(interval);
+  }, [isActive]);
+
   useEffect(() => {
     const poll = async () => {
       const res = await rideService.getActiveRide().catch(() => null);
       if (res?.data) setActiveRide(res.data);
-      else setActiveRide(null); // Clear if no active ride
+      else setActiveRide(null); 
     };
     
-    poll(); // Initial check
+    poll();
     const interval = setInterval(poll, 8000);
     return () => clearInterval(interval);
   }, [setActiveRide]);
@@ -244,9 +265,16 @@ function ActiveRideTab({ activeRide }) {
             <div style={{ color: '#22C55E' }}><Navigation size={20} /></div>
             <div>
               <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>DESTINATION</p>
-              <p>{activeRide.destination_location}</p>
+              <p>{activeRide.dropoff_location}</p>
             </div>
           </div>
+        </div>
+
+        <div style={{ height: '350px', marginBottom: '40px', borderRadius: '20px', overflow: 'hidden' }}>
+          <RideMap 
+            pickup={{ lat: Number(activeRide.pickup_lat), lng: Number(activeRide.pickup_lng) }}
+            dropoff={{ lat: Number(activeRide.dropoff_lat), lng: Number(activeRide.dropoff_lng) }}
+          />
         </div>
         <div style={{ display: 'flex', gap: '20px' }}>
           {activeRide.status === 'accepted' && <button className="btn-primary" onClick={() => handleAction('start')} disabled={loading} style={{ flex: 1 }}>START TRIP</button>}

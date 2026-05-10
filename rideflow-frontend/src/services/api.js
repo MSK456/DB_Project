@@ -3,14 +3,14 @@ import useAuthStore from '../store/authStore';
 
 // Public instance — no auth headers (login, register, validate promo)
 export const publicApi = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  baseURL: 'http://localhost:8000/api/v1',
   withCredentials: true, // sends httpOnly cookies automatically
   headers: { 'Content-Type': 'application/json' },
 });
 
 // Private instance — authenticated requests
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  baseURL: 'http://localhost:8000/api/v1',
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 });

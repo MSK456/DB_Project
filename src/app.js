@@ -15,23 +15,20 @@ import { ApiResponse } from "./utils/ApiResponse.js";
 
 const app = express();
 
+app.use(
+  cors({
+    origin: true, // Reflects the request origin, allowing all
+    credentials: true,
+  })
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  SECURITY HEADERS  (helmet sets ~15 HTTP security headers by default)
 //  Examples: X-Content-Type-Options, X-Frame-Options, HSTS, CSP, etc.
 // ─────────────────────────────────────────────────────────────────────────────
-app.use(helmet());
-
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  CORS  — allow only the configured frontend origin
-// ─────────────────────────────────────────────────────────────────────────────
-app.use(
-  cors({
-    origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
-    credentials: true,
-  })
-);
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  BODY PARSERS
@@ -43,13 +40,11 @@ app.use(express.json({ limit: "16kb" }));
 // Parse URL-encoded form data (extended: true allows nested objects).
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 
-// Debug logger (placed after parsers)
+// Debug logger (Force on for troubleshooting)
 app.use((req, res, next) => {
-  if (process.env.NODE_ENV === "development") {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    const hasBody = req.body && Object.keys(req.body).length > 0;
-    console.log("Body:", hasBody ? JSON.stringify(req.body, null, 2) : "(empty)");
-  }
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  const hasBody = req.body && Object.keys(req.body).length > 0;
+  console.log("Body:", hasBody ? JSON.stringify(req.body, null, 2) : "(empty)");
   next();
 });
 

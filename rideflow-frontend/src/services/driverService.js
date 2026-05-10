@@ -11,3 +11,6 @@ export const getEarningsHistory = (params) =>
 
 export const getStats = () =>
   api.get('/driver/stats').then(r => r.data);
+
+export const updateLocation = (coords) =>
+  api.patch('/driver/location', coords).then(r => r.data);

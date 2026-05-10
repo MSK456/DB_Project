@@ -43,18 +43,15 @@ import { pool } from "../db/index.js";
 
 /** Short-lived cookie for the access token (1 day). */
 const accessCookieOptions = {
-  httpOnly: true, // Not accessible via client-side JS — prevents XSS theft.
-  secure: process.env.NODE_ENV === "production", // HTTPS only in prod.
-  sameSite: "strict", // CSRF protection.
-  maxAge: 24 * 60 * 60 * 1000, // 1 day in ms.
+  httpOnly: true,
+  secure: false,
+  maxAge: 24 * 60 * 60 * 1000,
 };
 
-/** Long-lived cookie for the refresh token (10 days). */
 const refreshCookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "strict",
-  maxAge: 10 * 24 * 60 * 60 * 1000, // 10 days in ms.
+  secure: false,
+  maxAge: 10 * 24 * 60 * 60 * 1000,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -275,8 +272,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 
   const clearOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    secure: false,
   };
 
   return res

@@ -5,9 +5,9 @@ import Joi from "joi";
 
 const requestRideSchema = Joi.object({
   pickup_location: Joi.string().required(),
-  pickup_city: Joi.string().required(),
+  pickup_city: Joi.string().optional(),
   dropoff_location: Joi.string().required(),
-  dropoff_city: Joi.string().required(),
+  dropoff_city: Joi.string().optional(),
   vehicle_type: Joi.string().valid("Economy", "Premium", "Bike").required(),
 });
 

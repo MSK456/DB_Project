@@ -41,22 +41,19 @@ const hasActiveRide = async (riderId) => {
   } catch (e) { throw new ApiError(500, "DB Error: hasActiveRide — " + e.message); }
 };
 
-/** Core driver-matching query — returns best available driver or null. */
+/** Legacy city-based driver matcher (Fallback). */
 const findAvailableDriver = async (vehicleType, city) => {
   try {
     const [rows] = await pool.execute(
-      `SELECT d.driver_id, u.full_name, d.avg_rating, d.current_city,
-              v.vehicle_id, v.make, v.model, v.color, v.license_plate, v.vehicle_type
+      `SELECT d.driver_id, v.vehicle_id, u.full_name
        FROM driver d
-       JOIN user u    ON d.driver_id = u.user_id
+       JOIN user u ON d.driver_id = u.user_id
        JOIN vehicle v ON v.driver_id = d.driver_id
        WHERE d.availability_status = 'Online'
          AND d.verification_status = 'Verified'
-         AND u.account_status      = 'Active'
-         AND v.vehicle_type        = ?
+         AND v.vehicle_type = ?
+         AND d.current_city = ?
          AND v.verification_status = 'Verified'
-         AND d.current_city        = ?
-       ORDER BY d.avg_rating DESC
        LIMIT 1`,
       [vehicleType, city]
     );
@@ -64,13 +61,61 @@ const findAvailableDriver = async (vehicleType, city) => {
   } catch (e) { throw new ApiError(500, "DB Error: findAvailableDriver — " + e.message); }
 };
 
-/** Inserts a new ride record. Returns the new ride_id. */
-const createRide = async ({ rider_id, driver_id, vehicle_id, pickup_location, pickup_city, dropoff_location, dropoff_city }) => {
+/** Core driver-matching query — returns candidates within a radius. */
+const findAvailableDriversByProximity = async ({ lat, lng, vehicleType, radiusKm = 15, limit = 5 }) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT 
+        d.driver_id, u.full_name, u.phone, d.avg_rating, d.current_city,
+        d.latitude AS driver_lat, d.longitude AS driver_lng,
+        v.vehicle_id, v.make, v.model, v.color, v.license_plate, v.vehicle_type,
+        (6371 * ACOS(
+          COS(RADIANS(?)) * COS(RADIANS(d.latitude)) *
+          COS(RADIANS(d.longitude) - RADIANS(?)) +
+          SIN(RADIANS(?)) * SIN(RADIANS(d.latitude))
+        )) AS distance_to_pickup_km
+      FROM driver d
+      JOIN user u ON d.driver_id = u.user_id
+      JOIN vehicle v ON v.driver_id = d.driver_id
+      WHERE d.availability_status = 'Online'
+        AND d.verification_status = 'Verified'
+        AND u.account_status = 'Active'
+        AND v.vehicle_type = ?
+        AND v.verification_status = 'Verified'
+        AND d.latitude IS NOT NULL
+        AND d.longitude IS NOT NULL
+      HAVING distance_to_pickup_km <= ?
+      ORDER BY distance_to_pickup_km ASC
+      LIMIT ${Number(limit)}`,
+      [lat, lng, lat, vehicleType, radiusKm]
+    );
+    return rows;
+  } catch (e) { throw new ApiError(500, "DB Error: findAvailableDriversByProximity — " + e.message); }
+};
+
+/** Inserts a new ride record with coordinates. */
+const createRide = async ({ 
+  rider_id, driver_id, vehicle_id, 
+  pickup_location, pickup_lat, pickup_lng, pickup_city, 
+  dropoff_location, dropoff_lat, dropoff_lng, dropoff_city,
+  distance_km = 0, duration_minutes = 0
+}) => {
   try {
     const [result] = await pool.execute(
-      `INSERT INTO ride (rider_id, driver_id, vehicle_id, pickup_location, pickup_city, dropoff_location, dropoff_city, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'Accepted')`,
-      [rider_id, driver_id, vehicle_id, pickup_location, pickup_city, dropoff_location, dropoff_city]
+      `INSERT INTO ride (
+        rider_id, driver_id, vehicle_id, 
+        pickup_location, pickup_lat, pickup_lng, pickup_city, 
+        dropoff_location, dropoff_lat, dropoff_lng, dropoff_city, 
+        distance_km, duration_minutes,
+        status
+      )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Accepted')`,
+      [
+        rider_id, driver_id, vehicle_id, 
+        pickup_location, pickup_lat, pickup_lng, pickup_city, 
+        dropoff_location, dropoff_lat, dropoff_lng, dropoff_city,
+        distance_km, duration_minutes
+      ]
     );
     return result.insertId;
   } catch (e) { throw new ApiError(500, "DB Error: createRide — " + e.message); }
@@ -159,25 +204,26 @@ const cancelRide = async (rideId) => {
 const getRiderHistory = async (riderId, page = 1, limit = 10) => {
   const offset = (page - 1) * limit;
   try {
-    const [rows] = await pool.query(
-      `SELECT r.*,
+    console.log(`[DEBUG] getRiderHistory for rider ${riderId}, page ${page}, limit ${limit}`);
+    const sql = `SELECT r.*,
               du.full_name AS driver_name,
               v.make, v.model, v.license_plate, v.vehicle_type
        FROM ride r
        LEFT JOIN driver d  ON r.driver_id = d.driver_id
        LEFT JOIN user du   ON d.driver_id = du.user_id
        LEFT JOIN vehicle v ON r.vehicle_id = v.vehicle_id
-       WHERE r.rider_id = ? AND r.status IN ('Completed','Cancelled')
+       WHERE r.rider_id = ${Number(riderId)} AND r.status IN ('Completed','Cancelled')
        ORDER BY r.end_time DESC
-       LIMIT ? OFFSET ?`,
-      [riderId, Number(limit), Number(offset)]
-    );
-    const [[{ total }]] = await pool.execute(
-      "SELECT COUNT(*) AS total FROM ride WHERE rider_id = ? AND status IN ('Completed','Cancelled')",
-      [riderId]
-    );
+       LIMIT ${Number(limit)} OFFSET ${Number(offset)}`;
+    
+    const [rows] = await pool.query(sql);
+    
+    const countSql = `SELECT COUNT(*) AS total FROM ride WHERE rider_id = ${Number(riderId)} AND status IN ('Completed','Cancelled')`;
+    const [countRows] = await pool.query(countSql);
+    const total = countRows[0]?.total || 0;
+
     return { rides: rows, total, page, limit };
-  } catch (e) { throw new ApiError(500, "DB Error: getRiderHistory — " + e.message); }
+  } catch (e) { throw new ApiError(500, "DB DEBUG Error: getRiderHistory — " + e.message); }
 };
 
 /** Creates a Payment record after ride completion. */
@@ -220,7 +266,7 @@ const getAllRidesAdmin = async ({ status, city, from, to } = {}) => {
 };
 
 export {
-  findRideById, hasActiveRide, findAvailableDriver, createRide,
+  findRideById, hasActiveRide, findAvailableDriver, findAvailableDriversByProximity, createRide,
   findActiveRideForRider, findActiveRideForDriver,
   startRide, prepareRideCompletion, finalizeRide, cancelRide,
   getRiderHistory, createPayment, getAllRidesAdmin,

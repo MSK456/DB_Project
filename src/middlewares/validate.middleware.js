@@ -31,6 +31,7 @@ const validateBody = (schema) => {
 
     if (error) {
       const errorMessages = error.details.map((detail) => detail.message);
+      console.error("[VALIDATION ERROR]", errorMessages, "Body:", bodyToValidate);
       return next(new ApiError(400, "Validation Error", errorMessages));
     }
 

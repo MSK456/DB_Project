@@ -13,6 +13,8 @@ import * as walletService from '../../services/walletService';
 import { GlassCard, Badge, Spinner, Button, Input } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
 import toast from 'react-hot-toast';
+import AddressAutocomplete from '../../components/maps/AddressAutocomplete';
+import RideMap from '../../components/maps/RideMap';
 
 export default function RiderDashboard() {
   const [activeTab, setActiveTab] = useState('book');
@@ -115,25 +117,25 @@ export default function RiderDashboard() {
 }
 
 function BookRideTab({ activeRide, onBookingSuccess }) {
-  const [form, setForm] = useState({ pickup: '', destination: '', vehicle_type: 'Standard' });
+  const [form, setForm] = useState({ 
+    pickup: '', 
+    pickupCoords: null,
+    destination: '', 
+    destinationCoords: null,
+    vehicle_type: 'Standard' 
+  });
   const [estimation, setEstimation] = useState(null);
   const { loading, execute } = useApi();
   const { setActiveRide, clearRide } = useRideStore();
+  const [selectingMapField, setSelectingMapField] = useState(null); // 'pickup' or 'dropoff'
 
   const handleEstimate = async () => {
-    if (!form.pickup || !form.destination) return toast.error('Enter pickup and destination');
+    if (!form.pickupCoords || !form.destinationCoords) return;
     
-    const typeMapping = {
-      'Standard': 'Economy',
-      'Premium': 'Premium',
-      'Executive': 'Premium'
-    };
-
+    const typeMapping = { 'Standard': 'Economy', 'Premium': 'Premium', 'Executive': 'Premium' };
     const payload = {
       pickup_location: form.pickup,
-      pickup_city: 'Islamabad',
       dropoff_location: form.destination,
-      dropoff_city: 'Islamabad',
       vehicle_type: typeMapping[form.vehicle_type] || 'Economy'
     };
 
@@ -141,19 +143,19 @@ function BookRideTab({ activeRide, onBookingSuccess }) {
     if (res) setEstimation(res.data);
   };
 
-  const handleBook = async () => {
-    // Map UI types to DB enum values
-    const typeMapping = {
-      'Standard': 'Economy',
-      'Premium': 'Premium',
-      'Executive': 'Premium' // Or whatever matches your DB enum
-    };
+  useEffect(() => {
+    if (form.pickupCoords && form.destinationCoords) {
+      handleEstimate();
+    }
+  }, [form.pickupCoords, form.destinationCoords, form.vehicle_type]);
 
+  const handleBook = async () => {
+    if (!form.pickup || !form.destination) return toast.error('Enter pickup and destination');
+
+    const typeMapping = { 'Standard': 'Economy', 'Premium': 'Premium', 'Executive': 'Premium' };
     const payload = {
       pickup_location: form.pickup,
-      pickup_city: 'Islamabad',
       dropoff_location: form.destination,
-      dropoff_city: 'Islamabad',
       vehicle_type: typeMapping[form.vehicle_type] || 'Economy'
     };
 
@@ -187,9 +189,16 @@ function BookRideTab({ activeRide, onBookingSuccess }) {
           <h3 style={{ fontSize: '1.5rem', margin: '16px 0 8px' }}>
             {activeRide.status === 'searching' ? 'Finding Your Driver' : `Driver ${activeRide.driver_name || 'En Route'}`}
           </h3>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '16px' }}>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
             {activeRide.pickup_location} → {activeRide.destination_location}
           </p>
+          
+          <div style={{ height: '300px', marginBottom: '32px', borderRadius: '20px', overflow: 'hidden' }}>
+            <RideMap 
+              pickup={{ lat: Number(activeRide.pickup_lat), lng: Number(activeRide.pickup_lng) }}
+              dropoff={{ lat: Number(activeRide.dropoff_lat), lng: Number(activeRide.dropoff_lng) }}
+            />
+          </div>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', marginBottom: '32px', background: 'var(--bg-glass)', padding: '20px', borderRadius: '16px' }}>
             <div>
@@ -225,8 +234,47 @@ function BookRideTab({ activeRide, onBookingSuccess }) {
             <h3 style={{ fontSize: '1.25rem' }}>Secure Your Ride</h3>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <Input label="Pickup Location" icon={MapPin} placeholder="Enter pickup address" value={form.pickup} onChange={e => setForm(p => ({ ...p, pickup: e.target.value }))} />
-            <Input label="Destination" icon={Search} placeholder="Where are you going?" value={form.destination} onChange={e => setForm(p => ({ ...p, destination: e.target.value }))} />
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label className="label-caps">Pickup Location</label>
+                <button 
+                  onClick={() => setSelectingMapField(selectingMapField === 'pickup' ? null : 'pickup')}
+                  style={{ fontSize: '11px', color: selectingMapField === 'pickup' ? 'var(--amber-core)' : 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  {selectingMapField === 'pickup' ? 'SELECTING ON MAP...' : 'SELECT ON MAP'}
+                </button>
+              </div>
+              <AddressAutocomplete 
+                placeholder="Where should we pick you up?"
+                value={form.pickup}
+                onSelect={(place) => setForm(p => ({ 
+                  ...p, 
+                  pickup: place.formattedAddress, 
+                  pickupCoords: { lat: place.lat, lng: place.lng } 
+                }))}
+              />
+            </div>
+
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label className="label-caps">Destination</label>
+                <button 
+                  onClick={() => setSelectingMapField(selectingMapField === 'dropoff' ? null : 'dropoff')}
+                  style={{ fontSize: '11px', color: selectingMapField === 'dropoff' ? 'var(--amber-core)' : 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  {selectingMapField === 'dropoff' ? 'SELECTING ON MAP...' : 'SELECT ON MAP'}
+                </button>
+              </div>
+              <AddressAutocomplete 
+                placeholder="Where are you headed?"
+                value={form.destination}
+                onSelect={(place) => setForm(p => ({ 
+                  ...p, 
+                  destination: place.formattedAddress, 
+                  destinationCoords: { lat: place.lat, lng: place.lng } 
+                }))}
+              />
+            </div>
             
             <div style={{ marginTop: '8px' }}>
               <label className="label-caps" style={{ display: 'block', marginBottom: '16px' }}>Select Experience</label>
@@ -240,17 +288,43 @@ function BookRideTab({ activeRide, onBookingSuccess }) {
               </div>
             </div>
 
-            <button className="btn-primary" onClick={handleBook} disabled={loading} style={{ width: '100%', marginTop: '16px', padding: '18px' }}>
-              {loading ? <Spinner size={18} /> : <>Find Driver <ArrowRight size={18} /></>}
+            {estimation && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="glass-1" style={{ padding: '20px', border: '1px solid var(--amber-ghost)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Estimated Fare</span>
+                  <span className="font-mono" style={{ fontWeight: 700, color: 'var(--amber-core)' }}>
+                    ${Number(estimation.estimated_fare).toFixed(2)}
+                    {estimation.is_surge && <Zap size={14} style={{ display: 'inline', marginLeft: '4px' }} />}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Distance / Time</span>
+                  <span>{estimation.distance_km} km / {estimation.duration_text}</span>
+                </div>
+              </motion.div>
+            )}
+
+            <button className="btn-primary" onClick={handleBook} disabled={loading || !form.pickupCoords} style={{ width: '100%', marginTop: '16px', padding: '18px' }}>
+              {loading ? <Spinner size={18} /> : <>Book Now <ArrowRight size={18} /></>}
             </button>
           </div>
         </GlassCard>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-          <GlassCard level={1} style={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: '300px' }}>
-            <img src="https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?w=800&q=80" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.4 }} />
-            <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at center, transparent 0%, var(--bg-void) 100%)' }} />
-            <div style={{ position: 'relative', zIndex: 1, padding: '24px', textAlign: 'center' }}><Badge status="Active">System Online</Badge></div>
-          </GlassCard>
+          <div style={{ flex: 1, borderRadius: '24px', overflow: 'hidden', border: selectingMapField ? '2px solid var(--amber-core)' : '1px solid rgba(255,255,255,0.05)', minHeight: '400px' }}>
+            <RideMap 
+              pickup={form.pickupCoords}
+              dropoff={form.destinationCoords}
+              onMapClick={(latLng) => {
+                if (selectingMapField === 'pickup') {
+                  setForm(p => ({ ...p, pickup: `${latLng.lat.toFixed(4)}, ${latLng.lng.toFixed(4)}`, pickupCoords: latLng }));
+                  setSelectingMapField(null);
+                } else if (selectingMapField === 'dropoff') {
+                  setForm(p => ({ ...p, destination: `${latLng.lat.toFixed(4)}, ${latLng.lng.toFixed(4)}`, destinationCoords: latLng }));
+                  setSelectingMapField(null);
+                }
+              }}
+            />
+          </div>
         </div>
       </div>
     </motion.div>
@@ -269,7 +343,7 @@ function RideHistoryTab({ history, loading }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
                   <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Car size={20} color="var(--text-muted)" /></div>
                   <div>
-                    <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>{ride.pickup_location.split(',')[0]} → {ride.destination_location.split(',')[0]}</div>
+                    <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>{ride.pickup_location.split(',')[0]} → {ride.dropoff_location?.split(',')[0] || 'Unknown'}</div>
                     <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{new Date(ride.request_time).toLocaleDateString()} • {ride.vehicle_type}</div>
                   </div>
                 </div>

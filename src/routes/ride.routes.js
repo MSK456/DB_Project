@@ -11,6 +11,7 @@ import {
   handleStartRide,
   handleCompleteRide,
   handleCancelRide,
+  handleGetFareEstimate,
   fetchRiderHistory
 } from "../controllers/ride.controller.js";
 
@@ -20,6 +21,7 @@ router.use(verifyJWT);
 
 // Rider only
 router.post("/request", authorizeRoles("Rider"), validateBody(requestRideSchema), requestNewRide);
+router.post("/estimate", authorizeRoles("Rider"), handleGetFareEstimate);
 router.get("/history", authorizeRoles("Rider"), fetchRiderHistory);
 
 // Driver only

@@ -9,7 +9,8 @@ import {
   hasVerifiedVehicle,
   updateAvailabilityStatus,
   getDriverProfile,
-  getDriverStats
+  getDriverStats,
+  updateDriverLocation
 } from "../models/driver.model.js";
 
 /**
@@ -70,4 +71,25 @@ const fetchDriverStats = asyncHandler(async (req, res) => {
   );
 });
 
-export { toggleAvailability, fetchDriverProfile, fetchDriverStats };
+/**
+ * PATCH /api/v1/driver/location
+ */
+const handleUpdateLocation = asyncHandler(async (req, res) => {
+  const { latitude, longitude } = req.body;
+  const driverId = req.user.userId;
+
+  if (latitude === undefined || longitude === undefined) {
+    throw new ApiError(400, "Latitude and longitude are required");
+  }
+
+  // Basic validation
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    throw new ApiError(400, "Invalid coordinate ranges");
+  }
+
+  await updateDriverLocation(driverId, latitude, longitude);
+
+  return res.status(200).json(new ApiResponse(200, null, "Location updated"));
+});
+
+export { toggleAvailability, fetchDriverProfile, fetchDriverStats, handleUpdateLocation };

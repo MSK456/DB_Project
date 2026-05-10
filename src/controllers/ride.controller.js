@@ -8,6 +8,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import {
   hasActiveRide,
   findAvailableDriver,
+  findAvailableDriversByProximity,
   createRide,
   findActiveRideForRider,
   findActiveRideForDriver,
@@ -20,44 +21,120 @@ import {
   createPayment
 } from "../models/ride.model.js";
 import { updateAvailabilityStatus } from "../models/driver.model.js";
+import { geocodeAddress, getDrivingDistance } from "../utils/googleMapsService.js";
+
+/**
+ * Internal helper to determine surge based on proximity demand/supply
+ */
+const determineSurge = async (lat, lng) => {
+  try {
+    const connection = await pool.getConnection();
+    
+    // 1. Online drivers within 10km
+    const [[{ onlineDriversNearby }]] = await connection.execute(`
+      SELECT COUNT(*) as onlineDriversNearby
+      FROM driver d
+      WHERE d.availability_status = 'Online'
+        AND d.latitude IS NOT NULL
+        AND (6371 * ACOS(
+          COS(RADIANS(?)) * COS(RADIANS(d.latitude)) *
+          COS(RADIANS(d.longitude) - RADIANS(?)) +
+          SIN(RADIANS(?)) * SIN(RADIANS(d.latitude))
+        )) <= 10
+    `, [lat, lng, lat]);
+
+    // 2. Active rides in last 30 min within 10km
+    const [[{ activeRidesNearby }]] = await connection.execute(`
+      SELECT COUNT(*) as activeRidesNearby
+      FROM ride r
+      WHERE r.status IN ('Requested', 'Accepted', 'In Progress')
+        AND r.pickup_lat IS NOT NULL
+        AND r.request_time >= DATE_SUB(NOW(), INTERVAL 30 MINUTE)
+        AND (6371 * ACOS(
+          COS(RADIANS(?)) * COS(RADIANS(r.pickup_lat)) *
+          COS(RADIANS(r.pickup_lng) - RADIANS(?)) +
+          SIN(RADIANS(?)) * SIN(RADIANS(r.pickup_lat))
+        )) <= 10
+    `, [lat, lng, lat]);
+
+    connection.release();
+
+    const ratio = onlineDriversNearby === 0 ? activeRidesNearby : activeRidesNearby / onlineDriversNearby;
+    return ratio >= 2.0;
+  } catch (err) {
+    console.error("Surge calculation error:", err);
+    return false;
+  }
+};
 
 /**
  *  POST /api/v1/rides/request
  */
 const requestNewRide = asyncHandler(async (req, res) => {
-  const { pickup_location, pickup_city, dropoff_location, dropoff_city, vehicle_type } = req.body;
+  const { pickup_location, dropoff_location, vehicle_type } = req.body;
   const riderId = req.user.userId;
 
   // 1. Check if rider already has an active ride
   const active = await hasActiveRide(riderId);
-  if (active) {
-    throw new ApiError(400, "You already have an active ride");
-  }
+  if (active) throw new ApiError(400, "You already have an active ride");
 
-  // 2. Match driver
-  const driver = await findAvailableDriver(vehicle_type, pickup_city);
+  // 2. Geocode both addresses
+  const pickupGeo = await geocodeAddress(pickup_location);
+  if (!pickupGeo) throw new ApiError(400, `Could not locate pickup address: "${pickup_location}". Please be more specific.`);
+
+  const dropoffGeo = await geocodeAddress(dropoff_location);
+  if (!dropoffGeo) throw new ApiError(400, `Could not locate dropoff address: "${dropoff_location}". Please be more specific.`);
+
+  // 3. Match drivers by proximity
+  let drivers = await findAvailableDriversByProximity({
+    lat: pickupGeo.lat,
+    lng: pickupGeo.lng,
+    vehicleType: vehicle_type
+  });
+
+  let driver = drivers[0];
+
+  // Fallback to city match if no drivers nearby have coordinates
   if (!driver) {
-    throw new ApiError(503, "No drivers available in your area currently. Please try again shortly.");
+    console.warn("No drivers found by proximity. Falling back to city matching.");
+    driver = await findAvailableDriver(vehicle_type, pickupGeo.city);
   }
 
-  // 3. Create Ride
+  if (!driver) {
+    throw new ApiError(503, "No drivers available in your area currently.");
+  }
+
+  // 4. Get driving distance for initial estimation
+  const mapsResult = await getDrivingDistance(
+    pickupGeo.lat, pickupGeo.lng,
+    dropoffGeo.lat, dropoffGeo.lng
+  );
+
+  // 5. Determine Surge for price transparency
+  const is_surge = await determineSurge(pickupGeo.lat, pickupGeo.lng);
+
+  // 6. Create Ride with full coordinates and estimates
   const rideId = await createRide({
     rider_id: riderId,
     driver_id: driver.driver_id,
     vehicle_id: driver.vehicle_id,
-    pickup_location,
-    pickup_city,
-    dropoff_location,
-    dropoff_city
+    pickup_location: pickupGeo.formattedAddress,
+    pickup_lat: pickupGeo.lat,
+    pickup_lng: pickupGeo.lng,
+    pickup_city: pickupGeo.city,
+    dropoff_location: dropoffGeo.formattedAddress,
+    dropoff_lat: dropoffGeo.lat,
+    dropoff_lng: dropoffGeo.lng,
+    dropoff_city: dropoffGeo.city,
+    distance_km: mapsResult?.distanceKm || 0,
+    duration_minutes: mapsResult?.durationMinutes || 0
   });
 
-  // 4. Update Driver status
   await updateAvailabilityStatus(driver.driver_id, 'On Trip');
 
   const rideDetails = await findRideById(rideId);
-
   return res.status(201).json(
-    new ApiResponse(201, rideDetails, "Ride matched and accepted by driver")
+    new ApiResponse(201, { ...rideDetails, is_surge }, "Ride matched and accepted")
   );
 });
 
@@ -107,11 +184,6 @@ const handleStartRide = asyncHandler(async (req, res) => {
  */
 const handleCompleteRide = asyncHandler(async (req, res) => {
   const { rideId } = req.params;
-  let { distance_km, duration_minutes, is_surge = false } = req.body;
-  
-  // Hardcoded defaults for now as requested by user
-  if (!distance_km) distance_km = 8.5; 
-  if (!duration_minutes) duration_minutes = 15;
   const driverId = req.user.userId;
 
   const ride = await findRideById(rideId);
@@ -123,11 +195,25 @@ const handleCompleteRide = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Trip must be in progress to complete");
   }
 
-  // 1. Prepare completion (sets end_time, distance, duration)
+  // 1. Get real distance and duration from Google Maps
+  let distance_km = 8.0; // defaults
+  let duration_minutes = 15;
+  let is_surge = await determineSurge(ride.pickup_lat, ride.pickup_lng);
+
+  const mapsResult = await getDrivingDistance(
+    ride.pickup_lat, ride.pickup_lng, 
+    ride.dropoff_lat, ride.dropoff_lng
+  );
+
+  if (mapsResult) {
+    distance_km = mapsResult.distanceKm;
+    duration_minutes = mapsResult.durationMinutes;
+  }
+
+  // 2. Prepare completion
   await prepareRideCompletion(rideId, distance_km, duration_minutes);
 
-  // 2. Call stored procedure for fare calculation
-  // Using session variable pattern for OUT parameter
+  // 3. Calculate fare using stored procedure
   await pool.query('CALL CalculateFare(?, ?, ?, ?, @fare)', [
     distance_km,
     duration_minutes,
@@ -137,13 +223,9 @@ const handleCompleteRide = asyncHandler(async (req, res) => {
   const [[result]] = await pool.query('SELECT @fare as fare');
   const fare = result.fare;
 
-  // 3. Finalize ride status and fare
   await finalizeRide(rideId, fare);
-
-  // 4. Free up driver
   await updateAvailabilityStatus(driverId, 'Online');
 
-  // 5. Create pending payment record
   await createPayment({
     ride_id: rideId,
     rider_id: ride.rider_id,
@@ -152,8 +234,52 @@ const handleCompleteRide = asyncHandler(async (req, res) => {
   });
 
   const summary = await findRideById(rideId);
+  return res.status(200).json(new ApiResponse(200, summary, "Trip completed"));
+});
 
-  return res.status(200).json(new ApiResponse(200, summary, "Trip completed successfully"));
+/**
+ * POST /api/v1/rides/estimate
+ */
+const handleGetFareEstimate = asyncHandler(async (req, res) => {
+  const { pickup_location, dropoff_location, vehicle_type } = req.body;
+
+  const pickupGeo = await geocodeAddress(pickup_location);
+  const dropoffGeo = await geocodeAddress(dropoff_location);
+
+  if (!pickupGeo || !dropoffGeo) {
+    throw new ApiError(400, "Could not locate addresses for estimation");
+  }
+
+  const mapsResult = await getDrivingDistance(
+    pickupGeo.lat, pickupGeo.lng,
+    dropoffGeo.lat, dropoffGeo.lng
+  );
+
+  if (!mapsResult) {
+    throw new ApiError(500, "Could not calculate distance for estimation");
+  }
+
+  const is_surge = await determineSurge(pickupGeo.lat, pickupGeo.lng);
+
+  // Replicate CalculateFare logic briefly for estimate or call SP
+  await pool.query('CALL CalculateFare(?, ?, ?, ?, @fare)', [
+    mapsResult.distanceKm,
+    mapsResult.durationMinutes,
+    vehicle_type,
+    is_surge
+  ]);
+  const [[result]] = await pool.query('SELECT @fare as fare');
+
+  return res.status(200).json(new ApiResponse(200, {
+    pickup: pickupGeo,
+    dropoff: dropoffGeo,
+    distance_km: mapsResult.distanceKm,
+    duration_minutes: mapsResult.durationMinutes,
+    duration_text: mapsResult.durationText,
+    estimated_fare: result.fare,
+    is_surge,
+    vehicle_type
+  }, "Estimate generated"));
 });
 
 /**
@@ -199,5 +325,6 @@ export {
   handleStartRide,
   handleCompleteRide,
   handleCancelRide,
+  handleGetFareEstimate,
   fetchRiderHistory
 };
