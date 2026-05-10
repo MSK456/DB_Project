@@ -126,6 +126,37 @@ export default function ActiveRideTracker({ activeRide, onPaymentSuccess }) {
 
       <AnimatePresence mode="wait">
         {/* Step-Specific Content */}
+        {activeRide.status === 'Requested' && (
+          <motion.div key="requested" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            <GlassCard level={2} style={{ padding: '40px', textAlign: 'center' }}>
+              <div style={{ position: 'relative', width: '100px', height: '100px', margin: '0 auto 32px' }}>
+                <motion.div 
+                  animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                  style={{ position: 'absolute', inset: 0, background: 'var(--amber-ghost)', borderRadius: '50%' }}
+                />
+                <div style={{ position: 'relative', width: '100%', height: '100%', background: 'var(--amber-ghost)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--amber-core)', border: '1px solid var(--amber-ghost)' }}>
+                  <Search size={40} className="animate-pulse" />
+                </div>
+              </div>
+              <h3 style={{ fontSize: '1.5rem', marginBottom: '12px' }}>Finding your driver...</h3>
+              <p style={{ color: 'var(--text-muted)', marginBottom: '32px' }}>We're matching you with the best captain nearby.</p>
+              
+              <Button variant="ghost" onClick={async () => {
+                try {
+                  await rideService.cancelRide(activeRide.ride_id);
+                  toast.success("Request cancelled.");
+                  clearRide();
+                } catch (e) {
+                  toast.error(e.response?.data?.message || "Cancellation failed");
+                }
+              }} style={{ color: '#EF4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                Cancel Request
+              </Button>
+            </GlassCard>
+          </motion.div>
+        )}
+
         {(activeRide.status === 'Accepted' || activeRide.status === 'Driver En Route') && (
           <motion.div key="driver-en-route" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <GlassCard level={2} className="border-amber-ghost" style={{ padding: '32px' }}>
@@ -161,10 +192,23 @@ export default function ActiveRideTracker({ activeRide, onPaymentSuccess }) {
                 </div>
               </div>
 
-              <div style={{ marginTop: '24px', padding: '16px', background: 'var(--amber-ghost)', borderRadius: '12px', textAlign: 'center' }}>
-                <p style={{ color: 'var(--amber-core)', fontSize: '14px', fontWeight: 600 }}>
-                  Estimated Fare: <span className="font-mono">PKR {parseFloat(activeRide.fare_estimated).toFixed(2)}</span>
-                </p>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                <div style={{ flex: 1, padding: '16px', background: 'var(--amber-ghost)', borderRadius: '12px', textAlign: 'center' }}>
+                  <p style={{ color: 'var(--amber-core)', fontSize: '14px', fontWeight: 600 }}>
+                    Estimated Fare: <span className="font-mono">PKR {parseFloat(activeRide.fare_estimated).toFixed(2)}</span>
+                  </p>
+                </div>
+                <Button variant="ghost" onClick={async () => {
+                  try {
+                    await rideService.cancelRide(activeRide.ride_id);
+                    toast.success("Ride cancelled.");
+                    clearRide();
+                  } catch (e) {
+                    toast.error(e.response?.data?.message || "Cancellation failed");
+                  }
+                }} style={{ color: '#EF4444', background: 'rgba(239, 68, 68, 0.05)' }}>
+                  Cancel
+                </Button>
               </div>
             </GlassCard>
           </motion.div>
@@ -202,6 +246,23 @@ export default function ActiveRideTracker({ activeRide, onPaymentSuccess }) {
                 </div>
               </div>
               <p style={{ marginTop: '24px', color: 'var(--text-muted)', fontSize: '14px' }}>Enjoy your ride 🎵</p>
+            </GlassCard>
+          </motion.div>
+        )}
+
+        {activeRide.status === 'Cancelled' && (
+          <motion.div key="cancelled" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
+            <GlassCard level={2} style={{ padding: '40px', textAlign: 'center', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+              <div style={{ width: '80px', height: '80px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EF4444', margin: '0 auto 24px' }}>
+                <Zap size={40} />
+              </div>
+              <h2 style={{ fontSize: '1.8rem', marginBottom: '12px' }}>Ride Cancelled</h2>
+              <p style={{ color: 'var(--text-muted)', marginBottom: '32px', maxWidth: '300px', margin: '0 auto 32px' }}>
+                This ride has been cancelled. If you were charged a hold amount, it has been released back to your wallet.
+              </p>
+              <Button block onClick={() => { clearRide(); window.location.reload(); }}>
+                Book Another Ride
+              </Button>
             </GlassCard>
           </motion.div>
         )}

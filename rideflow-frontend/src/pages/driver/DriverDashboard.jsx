@@ -217,52 +217,177 @@ function ActiveRideTab({ activeRide }) {
 }
 
 function EarningsTab() {
-  return <div style={{ padding: '40px', color: 'var(--text-muted)' }}>Earnings history module loading...</div>;
-}
-
-function VehicleTab({ vehicles, onAdd }) {
-  const [form, setForm] = useState({ brand: '', model: '', plate: '', type: 'Standard' });
+  const [history, setHistory] = useState([]);
   const { loading, execute } = useApi();
 
-  const handleAdd = async (e) => {
-    e.preventDefault();
-    await execute(() => vehicleService.addVehicle(form), {
-      successMessage: 'Vehicle added for verification',
-      onSuccess: () => {
-        setForm({ brand: '', model: '', plate: '', type: 'Standard' });
-        onAdd();
-      }
-    });
-  };
+  const fetchHistory = useCallback(async () => {
+    const res = await execute(() => driverService.getEarningsHistory(), { showSuccessToast: false });
+    if (res) setHistory(res.data);
+  }, [execute]);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
+  const totalEarnings = history.reduce((acc, curr) => acc + parseFloat(curr.driver_amount || 0), 0);
+  const totalCommission = history.reduce((acc, curr) => acc + parseFloat(curr.commission || 0), 0);
+
+  if (loading && history.length === 0) return <div style={{ padding: '60px', textAlign: 'center' }}><Spinner /></div>;
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '32px', marginBottom: '40px' }}>
         <GlassCard level={2} style={{ padding: '40px' }}>
-          <h3 style={{ fontSize: '1.25rem', marginBottom: '24px' }}>My Vehicles</h3>
+          <h3 style={{ fontSize: '1.25rem', marginBottom: '32px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <History size={20} color="var(--amber-core)" /> Ride Analysis
+          </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {vehicles.map(v => (
-              <div key={v.vehicle_id} className="glass-1" style={{ padding: '20px', display: 'flex', justifyContent: 'space-between' }}>
-                <div>
-                  <h4 style={{ fontSize: '14px' }}>{v.make} {v.model}</h4>
-                  <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{v.plate_number} • {v.type}</p>
+            {history.map(ride => (
+              <div key={ride.ride_id} className="glass-1" style={{ padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <Badge status={ride.payment_status === 'Paid' ? 'Active' : 'Warning'}>{ride.payment_status}</Badge>
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>#{ride.ride_id} • {new Date(ride.end_time).toLocaleDateString()}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--amber-core)' }} />
+                      <p style={{ fontSize: '14px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}>{ride.pickup_location}</p>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#EF4444' }} />
+                      <p style={{ fontSize: '14px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}>{ride.dropoff_location}</p>
+                    </div>
+                  </div>
                 </div>
-                <Badge status={v.verification_status === 'Verified' ? 'Active' : 'Warning'}>{v.verification_status}</Badge>
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ fontSize: '18px', fontWeight: 700, color: 'var(--amber-core)' }}>+PKR {parseFloat(ride.driver_amount).toFixed(2)}</p>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Fare: PKR {parseFloat(ride.total_fare).toFixed(2)}</p>
+                </div>
               </div>
             ))}
-            {vehicles.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No vehicles registered.</p>}
+            {history.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
+                <div style={{ marginBottom: '16px', opacity: 0.2 }}><DollarSign size={48} /></div>
+                <p>No earnings history found yet.</p>
+              </div>
+            )}
           </div>
         </GlassCard>
-        <GlassCard level={2} style={{ padding: '40px' }}>
-          <h3 style={{ fontSize: '1.25rem', marginBottom: '24px' }}>Add New Vehicle</h3>
-          <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <Input label="Brand" value={form.brand} onChange={e => setForm(p => ({ ...p, brand: e.target.value }))} required />
-            <Input label="Model" value={form.model} onChange={e => setForm(p => ({ ...p, model: e.target.value }))} required />
-            <Input label="Plate Number" value={form.plate} onChange={e => setForm(p => ({ ...p, plate: e.target.value }))} required />
-            <button className="btn-primary" type="submit" disabled={loading}>{loading ? <Spinner /> : 'Register Vehicle'}</button>
-          </form>
-        </GlassCard>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <GlassCard level={3} style={{ padding: '32px', background: 'linear-gradient(135deg, rgba(255,191,0,0.1) 0%, rgba(0,0,0,0) 100%)' }}>
+            <TrendingUp size={24} color="var(--amber-core)" style={{ marginBottom: '20px' }} />
+            <p className="label-caps" style={{ marginBottom: '8px' }}>Lifetime Earnings</p>
+            <h2 style={{ fontSize: '2rem', fontWeight: 800 }}>PKR {totalEarnings.toFixed(2)}</h2>
+            <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Total Commission Paid</span>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: '#EF4444' }}>PKR {totalCommission.toFixed(2)}</span>
+            </div>
+          </GlassCard>
+
+          <GlassCard level={2} style={{ padding: '32px' }}>
+            <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Earnings Breakdown</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Net to You</span>
+                <span style={{ fontWeight: 600 }}>80%</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Service Fee</span>
+                <span style={{ fontWeight: 600 }}>20%</span>
+              </div>
+              <div style={{ marginTop: '10px', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{ width: '80%', height: '100%', background: 'var(--amber-core)' }} />
+              </div>
+            </div>
+          </GlassCard>
+        </div>
       </div>
     </motion.div>
   );
 }
+
+  const VehicleTab = ({ vehicles, onAdd }) => {
+    const [form, setForm] = useState({ 
+      make: '', 
+      model: '', 
+      year: new Date().getFullYear(), 
+      color: '', 
+      license_plate: '', 
+      vehicle_type: 'Economy' 
+    });
+    const { loading, execute } = useApi();
+
+    const handleAdd = async (e) => {
+      e.preventDefault();
+      await execute(() => vehicleService.addVehicle(form), {
+        successMessage: 'Vehicle added for verification',
+        onSuccess: () => {
+          setForm({ make: '', model: '', year: new Date().getFullYear(), color: '', license_plate: '', vehicle_type: 'Economy' });
+          onAdd();
+        }
+      });
+    };
+
+    return (
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+          <GlassCard level={2} style={{ padding: '40px' }}>
+            <h3 style={{ fontSize: '1.25rem', marginBottom: '24px' }}>My Vehicles</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {vehicles.map(v => (
+                <div key={v.vehicle_id} className="glass-1" style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h4 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                      {v.make} {v.model} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({v.year})</span>
+                    </h4>
+                    <div style={{ display: 'flex', gap: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><CreditCard size={14} /> {v.license_plate}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
+                      <span style={{ color: v.color?.toLowerCase() }}>{v.color}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
+                      <span style={{ color: 'var(--amber-core)' }}>{v.vehicle_type}</span>
+                    </div>
+                  </div>
+                  <Badge status={v.verification_status === 'Verified' ? 'Active' : 'Warning'}>
+                    {v.verification_status}
+                  </Badge>
+                </div>
+              ))}
+              {vehicles.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No vehicles registered.</p>}
+            </div>
+          </GlassCard>
+          <GlassCard level={2} style={{ padding: '40px' }}>
+            <h3 style={{ fontSize: '1.25rem', marginBottom: '24px' }}>Add New Vehicle</h3>
+            <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <Input label="Make (e.g. Toyota)" value={form.make} onChange={e => setForm(p => ({ ...p, make: e.target.value }))} required />
+                <Input label="Model (e.g. Corolla)" value={form.model} onChange={e => setForm(p => ({ ...p, model: e.target.value }))} required />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <Input label="Year" type="number" value={form.year} onChange={e => setForm(p => ({ ...p, year: e.target.value }))} required />
+                <Input label="Color" value={form.color} onChange={e => setForm(p => ({ ...p, color: e.target.value }))} required />
+              </div>
+              <Input label="License Plate" value={form.license_plate} onChange={e => setForm(p => ({ ...p, license_plate: e.target.value }))} required />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Vehicle Type</label>
+                <select 
+                  value={form.vehicle_type} 
+                  onChange={e => setForm(p => ({ ...p, vehicle_type: e.target.value }))}
+                  style={{ background: 'var(--bg-glass)', border: '1px solid rgba(255,255,255,0.05)', color: 'var(--text-primary)', padding: '12px', borderRadius: '10px', outline: 'none' }}
+                >
+                  <option value="Economy">Economy</option>
+                  <option value="Premium">Premium</option>
+                  <option value="Bike">Bike</option>
+                </select>
+              </div>
+              <button className="btn-primary" type="submit" disabled={loading} style={{ marginTop: '10px' }}>
+                {loading ? <Spinner /> : 'Register Vehicle'}
+              </button>
+            </form>
+          </GlassCard>
+        </div>
+      </motion.div>
+    );
+  };

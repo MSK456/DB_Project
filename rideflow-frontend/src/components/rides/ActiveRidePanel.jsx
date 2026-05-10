@@ -34,7 +34,7 @@ export default function ActiveRidePanel({ activeRide }) {
 
   const handleAction = async (action) => {
     setLoading(true);
-    try {
+        try {
       if (action === 'arrive') {
         await rideService.confirmArrival(activeRide.ride_id);
         toast.success("Arrival confirmed! Waiting for rider.");
@@ -45,6 +45,10 @@ export default function ActiveRidePanel({ activeRide }) {
         await rideService.confirmDestination(activeRide.ride_id);
         setShowConfirmModal(false);
         toast.success("Destination reached! Calculating final fare.");
+      } else if (action === 'cancel') {
+        await rideService.cancelRide(activeRide.ride_id);
+        toast.success("Ride cancelled.");
+        clearRide();
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Operation failed');
@@ -166,7 +170,7 @@ export default function ActiveRidePanel({ activeRide }) {
           )}
 
           {(!['In Progress', 'Completed'].includes(activeRide.status)) && (
-            <Button variant="ghost" size="sm" style={{ color: '#EF4444', marginTop: '8px' }}>
+            <Button variant="ghost" size="sm" onClick={() => handleAction('cancel')} disabled={loading} style={{ color: '#EF4444', marginTop: '8px' }}>
               Cancel Ride
             </Button>
           )}

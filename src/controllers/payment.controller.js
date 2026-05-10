@@ -79,7 +79,7 @@ const handlePayForRide = asyncHandler(async (req, res) => {
       await recordTransaction(connection, {
         owner_id: riderId,
         owner_type: 'Rider',
-        txn_type: 'Debit',
+        txn_type: 'TripPayment',
         amount: finalAmount,
         balance_after: newRiderBalance,
         ref_id: ride_id,
@@ -102,7 +102,7 @@ const handlePayForRide = asyncHandler(async (req, res) => {
     await recordTransaction(connection, {
       owner_id: ride.driver_id,
       owner_type: 'Driver',
-      txn_type: 'Credit',
+      txn_type: 'TripEarning',
       amount: driverEarning,
       balance_after: newDriverBalance,
       ref_id: ride_id,
@@ -183,9 +183,12 @@ const handleProcessRidePayment = asyncHandler(async (req, res) => {
   await connection.beginTransaction();
 
   try {
-    // Step 1: Fetch ride with lock
+    // Step 1: Fetch ride with lock (join vehicle for vehicle_type)
     const [rideRows] = await connection.execute(
-      "SELECT * FROM ride WHERE ride_id = ? AND rider_id = ? FOR UPDATE",
+      `SELECT r.*, v.vehicle_type 
+       FROM ride r 
+       JOIN vehicle v ON r.vehicle_id = v.vehicle_id 
+       WHERE r.ride_id = ? AND r.rider_id = ? FOR UPDATE`,
       [rideId, riderId]
     );
     const ride = rideRows[0];
@@ -197,7 +200,7 @@ const handleProcessRidePayment = asyncHandler(async (req, res) => {
 
     // Step 2: Promo Calculation
     let discountAmount = 0;
-    let finalAmount = parseFloat(ride.fare);
+    let finalAmount = parseFloat(ride.fare) || 0;
     let promo = null;
 
     if (promo_code) {
@@ -213,7 +216,9 @@ const handleProcessRidePayment = asyncHandler(async (req, res) => {
       [riderId]
     );
     const wallet = walletRows[0];
-    const balance = parseFloat(wallet.balance);
+    const balance = parseFloat(wallet?.balance || 0);
+    let fareVal = parseFloat(ride.fare);
+    if (isNaN(fareVal)) fareVal = 0;
 
     if (balance < finalAmount) {
       await connection.rollback();
@@ -228,14 +233,14 @@ const handleProcessRidePayment = asyncHandler(async (req, res) => {
     const newRiderBalance = balance - finalAmount;
     await connection.execute(
       "UPDATE rider_wallet SET balance = ? WHERE rider_id = ?",
-      [newRiderBalance, riderId]
+      [newRiderBalance || 0, riderId]
     );
 
     await connection.execute(
       `INSERT INTO wallet_transaction 
        (wallet_owner_id, owner_type, txn_type, amount, balance_after, reference_id, reference_type, note)
-       VALUES (?, 'Rider', 'Debit', ?, ?, ?, 'Ride', ?)`,
-      [riderId, finalAmount, newRiderBalance, rideId, `Payment for ride #${rideId}`]
+       VALUES (?, 'Rider', 'TripPayment', ?, ?, ?, 'Ride', ?)`,
+      [riderId, finalAmount || 0, newRiderBalance || 0, rideId, `Payment for ride #${rideId}`]
     );
 
     // Step 5: Driver Earnings
@@ -244,8 +249,9 @@ const handleProcessRidePayment = asyncHandler(async (req, res) => {
       [ride.vehicle_type]
     );
     const commissionRate = configRows[0]?.commission_rate || 0.20;
-    const driverEarning = ride.fare * (1 - commissionRate);
-    const commissionDeducted = ride.fare * commissionRate;
+    const currentFare = parseFloat(ride.fare) || 0;
+    const driverEarning = currentFare * (1 - commissionRate);
+    const commissionDeducted = currentFare * commissionRate;
 
     // Step 6: Credit Driver Wallet
     const [dWalletRows] = await connection.execute(
@@ -257,14 +263,14 @@ const handleProcessRidePayment = asyncHandler(async (req, res) => {
 
     await connection.execute(
       "UPDATE wallet SET balance = ? WHERE driver_id = ?",
-      [newDriverBalance, ride.driver_id]
+      [newDriverBalance || 0, ride.driver_id]
     );
 
     await connection.execute(
       `INSERT INTO wallet_transaction 
        (wallet_owner_id, owner_type, txn_type, amount, balance_after, reference_id, reference_type, note)
-       VALUES (?, 'Driver', 'Credit', ?, ?, ?, 'Ride', ?)`,
-      [ride.driver_id, driverEarning, newDriverBalance, rideId, `Earnings for ride #${rideId}`]
+       VALUES (?, 'Driver', 'TripEarning', ?, ?, ?, 'Ride', ?)`,
+      [ride.driver_id, driverEarning || 0, newDriverBalance || 0, rideId, `Earnings for ride #${rideId}`]
     );
 
     // Step 7: Create Payment Record

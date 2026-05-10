@@ -20,6 +20,7 @@ router.use(verifyJWT, authorizeRoles("Driver"));
 router.patch("/availability", validateBody(updateAvailabilitySchema), toggleAvailability);
 router.get("/profile", fetchDriverProfile);
 router.get("/stats", fetchDriverStats);
+router.get("/earnings", fetchDriverEarnings);
 router.patch("/location", handleUpdateLocation);
 
 export default router;

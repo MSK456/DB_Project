@@ -105,17 +105,16 @@ const getDriverProfile = async (driverId) => {
 const getDriverStats = async (driverId) => {
   try {
     const [statsRows] = await pool.execute(
-      `SELECT d.total_trips, d.avg_rating, d.current_city,
+      `SELECT d.total_trips AS total_rides, d.avg_rating AS rating, d.current_city,
               d.availability_status, d.verification_status,
               w.balance AS wallet_balance,
-              COALESCE(SUM(p.amount), 0) AS earnings_this_month
+              COALESCE(SUM(CASE WHEN DATE(r.end_time) = CURDATE() THEN p.amount * 0.8 ELSE 0 END), 0) AS today_earnings,
+              COALESCE(SUM(CASE WHEN MONTH(r.end_time) = MONTH(CURDATE()) AND YEAR(r.end_time) = YEAR(CURDATE()) THEN p.amount * 0.8 ELSE 0 END), 0) AS earnings_this_month
        FROM driver d
        LEFT JOIN wallet w ON w.driver_id = d.driver_id
        LEFT JOIN ride r
          ON r.driver_id = d.driver_id
          AND r.status = 'Completed'
-         AND MONTH(r.end_time) = MONTH(CURDATE())
-         AND YEAR(r.end_time)  = YEAR(CURDATE())
        LEFT JOIN payment p ON p.ride_id = r.ride_id
          AND p.payment_status = 'Paid'
        WHERE d.driver_id = ?
@@ -145,6 +144,32 @@ const updateDriverLocation = async (driverId, lat, lng) => {
   }
 };
 
+/**
+ * Returns detailed earnings history for a driver.
+ * @param {number} driverId
+ * @returns {Promise<object[]>}
+ */
+const getDriverEarnings = async (driverId) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT 
+        r.ride_id, r.pickup_location, r.dropoff_location, r.end_time,
+        r.fare AS total_fare,
+        (r.fare * 0.8) AS driver_amount,
+        (r.fare * 0.2) AS commission,
+        p.payment_status, p.payment_method
+       FROM ride r
+       LEFT JOIN payment p ON p.ride_id = r.ride_id
+       WHERE r.driver_id = ? AND r.status = 'Completed'
+       ORDER BY r.end_time DESC`,
+      [driverId]
+    );
+    return rows;
+  } catch (error) {
+    throw new ApiError(500, "DB Error: getDriverEarnings — " + error.message);
+  }
+};
+
 export {
   findDriverById,
   hasVerifiedVehicle,
@@ -152,4 +177,5 @@ export {
   updateDriverLocation,
   getDriverProfile,
   getDriverStats,
+  getDriverEarnings,
 };

@@ -161,12 +161,15 @@ const releaseRideHold = async (rideId) => {
   } catch (e) { throw new ApiError(500, "DB Error: releaseRideHold — " + e.message); }
 };
 
-/** Active ride for a specific rider. */
+/** Active ride assigned to a specific rider. */
 const findActiveRideForRider = async (riderId) => {
   try {
     const placeholders = ACTIVE_STATUSES.map(() => "?").join(",");
     const [rows] = await pool.execute(
-      `SELECT ${RIDE_DETAILS_SELECT} FROM ride r ${RIDE_DETAILS_JOINS} WHERE r.rider_id = ? AND r.status IN (${placeholders}) ORDER BY r.request_time DESC LIMIT 1`,
+      `SELECT ${RIDE_DETAILS_SELECT} FROM ride r ${RIDE_DETAILS_JOINS} 
+       WHERE r.rider_id = ? 
+       AND (r.status IN (${placeholders}) OR (r.status = 'Completed' AND r.payment_status != 'Paid'))
+       ORDER BY r.request_time DESC LIMIT 1`,
       [riderId, ...ACTIVE_STATUSES]
     );
     return rows[0] || null;
@@ -178,7 +181,10 @@ const findActiveRideForDriver = async (driverId) => {
   try {
     const placeholders = ACTIVE_STATUSES.map(() => "?").join(",");
     const [rows] = await pool.execute(
-      `SELECT ${RIDE_DETAILS_SELECT} FROM ride r ${RIDE_DETAILS_JOINS} WHERE r.driver_id = ? AND r.status IN (${placeholders}) ORDER BY r.request_time DESC LIMIT 1`,
+      `SELECT ${RIDE_DETAILS_SELECT} FROM ride r ${RIDE_DETAILS_JOINS} 
+       WHERE r.driver_id = ? 
+       AND (r.status IN (${placeholders}) OR (r.status = 'Completed' AND r.payment_status != 'Paid'))
+       ORDER BY r.request_time DESC LIMIT 1`,
       [driverId, ...ACTIVE_STATUSES]
     );
     return rows[0] || null;

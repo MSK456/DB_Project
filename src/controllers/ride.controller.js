@@ -365,7 +365,7 @@ const handleDestinationReached = asyncHandler(async (req, res) => {
     is_surge
   ]);
   const [[calcResult]] = await pool.query('SELECT @fare as fare');
-  const finalFare = calcResult.fare;
+  const finalFare = calcResult.fare || ride.fare_estimated || 0;
 
   // 3. Update Ride
   await updateRideStatus(rideId, 'Completed', {
@@ -536,7 +536,9 @@ const fetchRiderHistory = asyncHandler(async (req, res) => {
 export {
   requestNewRide,
   getActiveRide,
+  handleDriverArrived,
   handleStartRide,
+  handleDestinationReached,
   handleCompleteRide,
   handleCancelRide,
   handleGetFareEstimate,

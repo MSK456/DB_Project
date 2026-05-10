@@ -92,4 +92,14 @@ const handleUpdateLocation = asyncHandler(async (req, res) => {
   return res.status(200).json(new ApiResponse(200, null, "Location updated"));
 });
 
-export { toggleAvailability, fetchDriverProfile, fetchDriverStats, handleUpdateLocation };
+/**
+ * GET /api/v1/driver/earnings
+ */
+const fetchDriverEarnings = asyncHandler(async (req, res) => {
+  const earnings = await getDriverEarnings(req.user.userId);
+  return res.status(200).json(
+    new ApiResponse(200, earnings, "Earnings history fetched successfully")
+  );
+});
+
+export { toggleAvailability, fetchDriverProfile, fetchDriverStats, handleUpdateLocation, fetchDriverEarnings };
