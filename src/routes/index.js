@@ -13,6 +13,7 @@ import adminRouter from "./admin.routes.js";
 import paymentRouter from "./payment.routes.js";
 import walletRouter from "./wallet.routes.js";
 import promoRouter from "./promo.routes.js";
+import ratingRouter from "./rating.routes.js";
 
 const masterRouter = Router();
 
@@ -25,5 +26,6 @@ masterRouter.use("/admin", adminRouter);
 masterRouter.use("/payments", paymentRouter);
 masterRouter.use("/wallet", walletRouter);
 masterRouter.use("/promos", promoRouter);
+masterRouter.use("/ratings", ratingRouter);
 
 export default masterRouter;

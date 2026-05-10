@@ -30,7 +30,8 @@ import {
   findDriverByCnic,
   createUser,
   createDriverProfile,
-  createWallet,
+  createDriverWallet,
+  createRiderWallet,
   updateRefreshToken,
   clearRefreshToken,
 } from "../models/user.model.js";
@@ -172,7 +173,9 @@ const registerUser = asyncHandler(async (req, res) => {
       cnic,
       profile_photo,
     });
-    await createWallet(userId);
+    await createDriverWallet(userId);
+  } else if (role === USER_ROLES.RIDER) {
+    await createRiderWallet(userId);
   }
 
   // ── 10. Generate tokens ───────────────────────────────────────────────────

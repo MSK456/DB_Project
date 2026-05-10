@@ -27,10 +27,18 @@ const getBalance = asyncHandler(async (req, res) => {
 
   if (role === 'Rider') {
     const wallet = await getRiderWallet(userId);
-    balance = wallet?.balance || 0;
+    if (!wallet) {
+      balance = 0;
+    } else {
+      balance = wallet.balance;
+    }
   } else if (role === 'Driver') {
     const wallet = await getDriverWallet(userId);
-    balance = wallet?.balance || 0;
+    if (!wallet) {
+      balance = 0;
+    } else {
+      balance = wallet.balance;
+    }
   }
 
   return res.status(200).json(new ApiResponse(200, { balance }, "Balance fetched"));
@@ -47,7 +55,15 @@ const handleTopup = asyncHandler(async (req, res) => {
   await connection.beginTransaction();
 
   try {
-    await updateRiderBalance(connection, riderId, amount);
+    // Check if wallet exists, if not, create it
+    const [existing] = await connection.execute("SELECT rider_id FROM rider_wallet WHERE rider_id = ? FOR UPDATE", [riderId]);
+    
+    if (existing.length === 0) {
+      await connection.execute("INSERT INTO rider_wallet (rider_id, balance) VALUES (?, ?)", [riderId, amount]);
+    } else {
+      await updateRiderBalance(connection, riderId, amount);
+    }
+
     const [rows] = await connection.execute("SELECT balance FROM rider_wallet WHERE rider_id = ?", [riderId]);
     const newBalance = rows[0].balance;
 

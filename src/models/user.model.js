@@ -188,18 +188,30 @@ const createDriverProfile = async ({
 };
 
 /**
- * Inserts a new Wallet record for a Driver with a starting balance of 0.
- * @param {number} driverId - The driver's user_id.
- * @returns {Promise<void>}
- * @throws {ApiError} 500 on database failure.
+ * Inserts a new Wallet record for a Driver.
+ * @param {number} driverId
  */
-const createWallet = async (driverId) => {
+const createDriverWallet = async (driverId) => {
   try {
     await pool.execute("INSERT INTO wallet (driver_id, balance) VALUES (?, 0)", [
       driverId,
     ]);
   } catch (error) {
-    throw new ApiError(500, "DB Error: createWallet — " + error.message);
+    throw new ApiError(500, "DB Error: createDriverWallet — " + error.message);
+  }
+};
+
+/**
+ * Inserts a new Wallet record for a Rider.
+ * @param {number} riderId
+ */
+const createRiderWallet = async (riderId) => {
+  try {
+    await pool.execute("INSERT INTO rider_wallet (rider_id, balance) VALUES (?, 0)", [
+      riderId,
+    ]);
+  } catch (error) {
+    throw new ApiError(500, "DB Error: createRiderWallet — " + error.message);
   }
 };
 
@@ -250,7 +262,8 @@ export {
   findDriverByCnic,
   createUser,
   createDriverProfile,
-  createWallet,
+  createDriverWallet,
+  createRiderWallet,
   updateRefreshToken,
   clearRefreshToken,
 };

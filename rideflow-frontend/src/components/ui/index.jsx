@@ -61,14 +61,19 @@ export function Skeleton({ width = '100%', height = '20px', className = '' }) {
   return <div className={`skeleton ${className}`} style={{ width, height }} />;
 }
 
-export function Spinner({ size = 20 }) {
+export function Spinner({ size = 20, color = 'currentColor' }) {
   return (
     <span style={{
       display: 'inline-block', width: size, height: size,
-      border: '2px solid rgba(245,166,35,0.2)',
-      borderTopColor: 'var(--amber-core)',
+      border: '2px solid rgba(255,255,255,0.1)',
+      borderTopColor: color,
       borderRadius: '50%',
       animation: 'spin 0.8s linear infinite',
+      borderColor: 'transparent',
+      borderLeftColor: color,
+      borderRightColor: color,
+      borderBottomColor: 'transparent',
+      opacity: 0.8
     }} />
   );
 }

@@ -62,23 +62,73 @@ export default function ActiveRidePanel({ activeRide }) {
       <AnimatePresence>
         {showConfirmModal && (
           <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            style={{ 
+              position: 'fixed', 
+              inset: 0, 
+              zIndex: 999, 
+              background: 'rgba(5, 5, 8, 0.85)', 
+              backdropFilter: 'blur(12px)',
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              padding: '24px' 
+            }}
           >
-            <GlassCard level={3} style={{ maxWidth: '400px', width: '100%', padding: '32px', textAlign: 'center' }}>
-              <AlertTriangle size={48} color="var(--amber-core)" style={{ margin: '0 auto 24px' }} />
-              <h3 style={{ fontSize: '1.25rem', marginBottom: '16px' }}>Reached Destination?</h3>
-              <p style={{ color: 'var(--text-muted)', marginBottom: '32px' }}>
-                Confirm you have reached <strong>{activeRide.dropoff_location}</strong>. 
-                Final fare will be calculated based on actual distance.
-              </p>
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <Button variant="ghost" block onClick={() => setShowConfirmModal(false)}>Cancel</Button>
-                <Button block onClick={() => handleAction('destination')} disabled={loading}>
-                  {loading ? <Spinner size={18} /> : "Confirm"}
-                </Button>
-              </div>
-            </GlassCard>
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              style={{ width: '100%', maxWidth: '440px' }}
+            >
+              <GlassCard 
+                level={3} 
+                style={{ 
+                  padding: '40px', 
+                  textAlign: 'center', 
+                  border: '1px solid rgba(245, 166, 35, 0.3)',
+                  boxShadow: '0 24px 60px rgba(0,0,0,0.5), 0 0 20px rgba(245, 166, 35, 0.1)'
+                }}
+              >
+                <div style={{ 
+                  width: '64px', 
+                  height: '64px', 
+                  borderRadius: '20px', 
+                  background: 'var(--amber-ghost)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  margin: '0 auto 24px',
+                  color: 'var(--amber-core)'
+                }}>
+                  <Navigation size={32} />
+                </div>
+                
+                <h3 style={{ fontSize: '1.5rem', marginBottom: '12px', color: 'var(--text-primary)' }}>REACHED DESTINATION?</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: '1.6', marginBottom: '32px' }}>
+                  Please confirm you have arrived at <br/>
+                  <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{activeRide.dropoff_location}</span>.
+                </p>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <Button 
+                    variant="secondary" 
+                    onClick={() => setShowConfirmModal(false)}
+                    style={{ background: 'rgba(255,255,255,0.03)' }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={() => handleAction('destination')} 
+                    disabled={loading}
+                  >
+                    {loading ? <Spinner size={18} /> : "Confirm"}
+                  </Button>
+                </div>
+              </GlassCard>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

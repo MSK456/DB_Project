@@ -464,3 +464,11 @@ Implemented 7 specialized reports using advanced SQL features to satisfy the gra
 
 ---
 *(End of Backend Implementation Phases)*
+
+## Phase 5.1 — Ratings & Reviews System
+- **One rating per side per ride**: Implemented database unique constraint `unique_rating_per_ride_per_side` and backend checks.
+- **Mutual Rating Flow**: Enabled riders to rate drivers and drivers to rate riders.
+- **Payment Gate**: Enforced logic that riders cannot rate a trip until the payment status is 'Paid'.
+- **Automated Recalculation**: The `after_rating_inserted` trigger automatically updates the driver's average rating in the `driver` table and flags them if it drops below 3.5.
+- **Rating Breakdown**: Added support for star distribution (5-star, 4-star, etc.) in the `getMyRatings` endpoint for profile analysis.
+- **Rating Status Tracking**: Added `rider_has_rated` and `driver_has_rated` flags to the `ride` table for UI state management.
