@@ -4,15 +4,23 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, Car, Shield, DollarSign, TrendingUp, AlertCircle, CheckCircle, 
   Settings, LogOut, Zap, Bell, Search, Filter, Activity, X, UserMinus, 
-  UserCheck, MoreVertical, Edit3, Save, Info, Ban, Clock
+  UserCheck, MoreVertical, Edit3, Save, Info, Ban, Clock, FileText, Download,
+  Calendar, Navigation, CreditCard
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+
+import { 
+  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, 
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+} from 'recharts';
+
 import useAuthStore from '../../store/authStore';
 import * as authService from '../../services/authService';
 import * as adminService from '../../services/adminService';
 import * as vehicleService from '../../services/vehicleService';
 import { GlassCard, Badge, Spinner, Input, Button, RatingStars } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
+import { exportToCSV } from '../../utils/exportCSV';
 import toast from 'react-hot-toast';
 
 export default function AdminDashboard() {
@@ -73,6 +81,7 @@ export default function AdminDashboard() {
             { id: 'verification', label: 'Verifications', icon: Shield },
             { id: 'users', label: 'Users', icon: Users },
             { id: 'fares', label: 'Fare Settings', icon: DollarSign },
+            { id: 'reports', label: 'Intelligence Reports', icon: FileText },
           ].map(item => (
             <button key={item.id} onClick={() => setActiveTab(item.id)} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 20px', borderRadius: '12px', border: 'none', cursor: 'pointer', textAlign: 'left', background: activeTab === item.id ? 'var(--amber-ghost)' : 'transparent', color: activeTab === item.id ? 'var(--amber-core)' : 'var(--text-muted)', transition: 'all 0.2s', fontWeight: activeTab === item.id ? 600 : 500 }}>
               <item.icon size={20} />
@@ -102,9 +111,142 @@ export default function AdminDashboard() {
           {activeTab === 'verification' && <VerificationTab key="verification" queue={pendingVehicles} onAction={fetchPendingVehicles} />}
           {activeTab === 'users' && <UsersTab key="users" users={usersList} onAction={fetchUsers} />}
           {activeTab === 'fares' && <FareTab key="fares" configs={fareConfigs} onAction={fetchFares} />}
+          {activeTab === 'reports' && <ReportsTab key="reports" />}
         </AnimatePresence>
       </main>
     </div>
+  );
+}
+
+function ReportsTab() {
+  const [activeReport, setActiveReport] = useState(null);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [dates, setDates] = useState({ 
+    from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    to: new Date().toISOString().split('T')[0]
+  });
+
+  const reports = [
+    { id: 'revenue-day', title: 'Daily Revenue', desc: 'Financial performance over time', icon: TrendingUp, type: 'line', service: adminService.getRevenueByDay },
+    { id: 'revenue-city', title: 'Revenue by City', desc: 'Geographic market analysis', icon: Navigation, type: 'bar', service: adminService.getRevenueByCity },
+    { id: 'revenue-method', title: 'Payment Distribution', desc: 'Usage of different payment modes', icon: CreditCard, type: 'pie', service: adminService.getRevenueByMethod },
+    { id: 'driver-earnings', title: 'Captain Earnings', desc: 'Top performing drivers', icon: DollarSign, type: 'bar', service: adminService.getDriverEarnings },
+    { id: 'trip-counts', title: 'Trip Density', desc: 'Rides per driver analysis', icon: Car, type: 'bar', service: adminService.getTripCounts },
+    { id: 'promo-usage', title: 'Promo Effectiveness', desc: 'Usage stats per code', icon: Zap, type: 'bar', service: adminService.getPromoUsage },
+    { id: 'low-rated', title: 'Quality Audit', desc: 'Drivers requiring attention', icon: AlertCircle, type: 'table', service: adminService.getLowRatedDrivers },
+    { id: 'full-trips', title: 'Full Trip Audit', desc: 'Comprehensive ride lifecycle data', icon: Info, type: 'table', service: adminService.getFullTripReport },
+  ];
+
+  const handleRunReport = async (report) => {
+    setActiveReport(report);
+    setLoading(true);
+    try {
+      const res = await report.service(dates);
+      setData(res.data);
+    } catch (e) {
+      toast.error("Failed to fetch report data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const COLORS = ['#FFBF00', '#D49F00', '#FFD700', '#B8860B', '#E6B800'];
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <div style={{ display: 'flex', gap: '16px', marginBottom: '32px' }}>
+        <Input type="date" label="From Date" value={dates.from} onChange={e => setDates(p => ({ ...p, from: e.target.value }))} />
+        <Input type="date" label="To Date" value={dates.to} onChange={e => setDates(p => ({ ...p, to: e.target.value }))} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '48px' }}>
+        {reports.map(r => (
+          <GlassCard key={r.id} level={2} onClick={() => handleRunReport(r)} style={{ padding: '24px', cursor: 'pointer', border: activeReport?.id === r.id ? '1px solid var(--amber-core)' : '1px solid transparent', background: activeReport?.id === r.id ? 'var(--amber-ghost)' : 'transparent', transition: 'all 0.3s' }}>
+            <r.icon size={20} color={activeReport?.id === r.id ? 'var(--amber-core)' : 'var(--text-muted)'} style={{ marginBottom: '16px' }} />
+            <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '4px' }}>{r.title}</h4>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{r.desc}</p>
+          </GlassCard>
+        ))}
+      </div>
+
+      {loading && <div style={{ textAlign: 'center', padding: '60px' }}><Spinner size={40} /></div>}
+
+      {data && !loading && (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <GlassCard level={3} style={{ padding: '40px', marginBottom: '40px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+              <h3 style={{ fontSize: '1.25rem' }}>{activeReport.title} Analysis</h3>
+              <Button variant="ghost" onClick={() => exportToCSV(data, activeReport.id)}><Download size={16} /> Export CSV</Button>
+            </div>
+
+            <div style={{ height: '400px', marginBottom: '48px', background: 'rgba(255,255,255,0.01)', borderRadius: '20px', padding: '20px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                {activeReport.type === 'line' ? (
+                  <LineChart data={data}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                    <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={12} />
+                    <YAxis stroke="var(--text-muted)" fontSize={12} />
+                    <Tooltip contentStyle={{ background: 'var(--bg-deep)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} />
+                    <Legend />
+                    <Line type="monotone" dataKey="revenue" stroke="var(--amber-core)" strokeWidth={3} dot={{ r: 4, fill: 'var(--amber-core)' }} />
+                    <Line type="monotone" dataKey="discounts" stroke="#EF4444" strokeWidth={2} />
+                  </LineChart>
+                ) : activeReport.type === 'bar' ? (
+                  <BarChart data={data} layout={activeReport.id === 'revenue-city' ? 'vertical' : 'horizontal'}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                    {activeReport.id === 'revenue-city' ? (
+                      <>
+                        <XAxis type="number" stroke="var(--text-muted)" />
+                        <YAxis type="category" dataKey="city" stroke="var(--text-muted)" fontSize={11} width={100} />
+                      </>
+                    ) : (
+                      <>
+                        <XAxis dataKey={activeReport.id === 'promo-usage' ? 'promo_code' : 'full_name'} stroke="var(--text-muted)" fontSize={11} />
+                        <YAxis stroke="var(--text-muted)" />
+                      </>
+                    )}
+                    <Tooltip cursor={{ fill: 'rgba(255,191,0,0.05)' }} contentStyle={{ background: 'var(--bg-deep)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} />
+                    <Bar dataKey={activeReport.id === 'trip-counts' ? 'trip_count' : activeReport.id === 'promo-usage' ? 'usage_count' : 'revenue' || 'earnings'} fill="var(--amber-core)" radius={activeReport.id === 'revenue-city' ? [0, 4, 4, 0] : [4, 4, 0, 0]} />
+                  </BarChart>
+                ) : activeReport.type === 'pie' ? (
+                  <PieChart>
+                    <Pie data={data} innerRadius={80} outerRadius={120} paddingAngle={5} dataKey="revenue" nameKey="payment_method" label>
+                      {data.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip contentStyle={{ background: 'var(--bg-deep)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} />
+                    <Legend />
+                  </PieChart>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
+                    <Info size={48} style={{ marginBottom: '16px', opacity: 0.2 }} />
+                    <p>Tabular Audit View Active</p>
+                  </div>
+                )}
+              </ResponsiveContainer>
+            </div>
+
+            <div style={{ overflowX: 'auto', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', background: 'rgba(255,255,255,0.02)' }}>
+                    {Object.keys(data[0]).map(k => <th key={k} style={{ padding: '16px', color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.05em' }}>{k.replace(/_/g, ' ')}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.slice(0, 100).map((row, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                      {Object.values(row).map((v, j) => <td key={j} style={{ padding: '16px' }}>{v === null ? '—' : String(v)}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {data.length > 100 && <p style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)' }}>Showing top 100 results. Use export for full dataset.</p>}
+            </div>
+          </GlassCard>
+        </motion.div>
+      )}
+    </motion.div>
   );
 }
 

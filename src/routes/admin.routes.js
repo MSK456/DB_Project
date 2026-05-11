@@ -6,26 +6,25 @@ import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { validateBody } from "../middlewares/validate.middleware.js";
 import { verifyVehicleSchema } from "../validators/vehicle.validators.js";
 import {
-  verifyVehicle,
-  fetchPendingVehicles,
-  fetchAllRides,
-  reportRevenueByCity,
-  reportRevenueByMethod,
-  reportDriverEarnings,
-  reportLowRatedDriversFull,
-  reportTripCountsFull,
-  reportAllRiders,
-  reportPromoUsage
+  getSystemOverview,
+  getUsers,
+  updateUserStatus,
+  getFareConfigs,
+  updateFareConfig,
+  getRevenueByCity,
+  getRevenueByMethod,
+  getDriverEarningsReport,
+  getLowRatedDriversReport,
+  getTripCountReport,
+  getPromoUsageReport,
+  getRevenueByDay,
+  getFullTripReport
 } from "../controllers/admin.controller.js";
 
 const router = Router();
 
 // Admins only
 router.use(verifyJWT, authorizeRoles("Admin"));
-
-router.get("/vehicles/pending", fetchPendingVehicles);
-router.patch("/vehicles/:vehicleId/verify", validateBody(verifyVehicleSchema), verifyVehicle);
-router.get("/rides", fetchAllRides);
 
 // Management
 router.get("/overview", getSystemOverview);
@@ -37,13 +36,15 @@ router.get("/fare-config", getFareConfigs);
 router.patch("/fare-config/:vehicleType", updateFareConfig);
 
 // Reports
-router.get("/reports/revenue/by-city", reportRevenueByCity);
-router.get("/reports/revenue/by-method", reportRevenueByMethod);
-router.get("/reports/drivers/earnings", reportDriverEarnings);
-router.get("/reports/drivers/low-rated", reportLowRatedDriversFull);
-router.get("/reports/drivers/trip-count", reportTripCountsFull);
-router.get("/reports/riders/all", reportAllRiders);
-router.get("/reports/promos/usage", reportPromoUsage);
-
+router.get("/reports/revenue/by-city", getRevenueByCity);
+router.get("/reports/revenue/by-day", getRevenueByDay);
+router.get("/reports/revenue/by-method", getRevenueByMethod);
+(lines 43-46)
+router.get("/reports/drivers/earnings", getDriverEarningsReport);
+router.get("/reports/drivers/low-rated", getLowRatedDriversReport);
+router.get("/reports/drivers/trip-count", getTripCountReport);
+router.get("/reports/promos/usage", getPromoUsageReport);
+router.get("/reports/trips/full", getFullTripReport);
 
 export default router;
+
