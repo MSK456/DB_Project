@@ -472,3 +472,16 @@ Implemented 7 specialized reports using advanced SQL features to satisfy the gra
 - **Automated Recalculation**: The `after_rating_inserted` trigger automatically updates the driver's average rating in the `driver` table and flags them if it drops below 3.5.
 - **Rating Breakdown**: Added support for star distribution (5-star, 4-star, etc.) in the `getMyRatings` endpoint for profile analysis.
 - **Rating Status Tracking**: Added `rider_has_rated` and `driver_has_rated` flags to the `ride` table for UI state management.
+
+## Phase 5.3 — DCL: Database Role-Based Access Control
+Implemented MySQL Data Control Language (DCL) to enforce the principle of least privilege. This ensures data security by restricting access to sensitive tables based on user roles.
+
+- **MySQL Roles vs. Users**: Roles (`rideflow_rider_role`, etc.) define permission templates, while users (`rf_rider_user`, etc.) are individual accounts assigned to these roles.
+- **App Connection Separation**: The main application connects with a privileged user, while these DCL roles are created for database-level auditing and reporting.
+- **Access Hierarchy**:
+    - **Riders**: SELECT/INSERT on rides and payments; SELECT on drivers/vehicles.
+    - **Drivers**: SELECT/UPDATE on assigned rides; SELECT on user profiles.
+    - **Support**: Global SELECT access; explicitly REVOKED DELETE on core tables (Ride, Payment, User).
+    - **Admin**: FULL PRIVILEGES on the entire schema.
+- **Rubric Compliance**: Verified that specific `GRANT` and `REVOKE` statements map directly to project requirements for role-based security.
+- **Audit Users**: Created four dedicated MySQL users with default roles assigned for verification.

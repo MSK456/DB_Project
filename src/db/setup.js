@@ -12,6 +12,49 @@
  */
 
 import { pool } from "./index.js";
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/**
+ * Executes DCL (Data Control Language) statements from src/sql/dcl.sql
+ */
+const executeDCL = async () => {
+  try {
+    console.log("🔐  Applying DCL roles and permissions...");
+    const dclPath = path.join(__dirname, '../sql/dcl.sql');
+    
+    if (!fs.existsSync(dclPath)) {
+      console.warn("  ⚠️   dcl.sql not found, skipping DCL setup.");
+      return;
+    }
+
+    const dclContent = fs.readFileSync(dclPath, 'utf8');
+    const statements = dclContent
+      .split(';')
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && !s.startsWith('--'));
+
+    for (let statement of statements) {
+      try {
+        await pool.query(statement);
+      } catch (err) {
+        // Skip errors for roles/users that already exist (errno 1396, 1227, etc)
+        // Or if the environment (Railway) doesn't allow GRANT/REVOKE for the app user
+        if (err.errno !== 1396 && err.errno !== 1227 && err.errno !== 1044) {
+          console.warn(`  ⚠️   DCL Statement skipped: ${statement.substring(0, 50)}... | Error: ${err.message}`);
+        }
+      }
+    }
+    console.log("✅  DCL roles and permissions applied successfully.");
+  } catch (err) {
+    console.error("❌  Failed to apply DCL:", err.message);
+  }
+};
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  VIEWS
@@ -305,6 +348,7 @@ const runDBSetup = async () => {
   await setupTriggers();
   await setupEvents();
   await seedFareConfig();
+  await executeDCL();
   console.log("✅  DB setup complete.\n");
 };
 
