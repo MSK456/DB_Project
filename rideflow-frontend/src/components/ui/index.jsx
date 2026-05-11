@@ -77,3 +77,5 @@ export function Spinner({ size = 20, color = 'currentColor' }) {
     }} />
   );
 }
+
+export { default as RatingStars } from './RatingStars';

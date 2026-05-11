@@ -109,7 +109,7 @@ export default function RiderDashboard() {
 
         <AnimatePresence mode="wait">
           {activeTab === 'book' && <BookRideTab key="book" activeRide={activeRide} onBookingSuccess={fetchStats} />}
-          {activeTab === 'history' && <RideHistoryTab key="history" history={rideHistory} loading={rideLoading} />}
+          {activeTab === 'history' && <RideHistoryTab key="history" history={rideHistory} loading={rideLoading} onRefresh={fetchHistory} />}
           {activeTab === 'wallet' && <WalletTab key="wallet" balance={balance} onRefresh={fetchStats} />}
           {activeTab === 'settings' && <AccountTab key="settings" user={user} />}
         </AnimatePresence>
@@ -300,7 +300,12 @@ function BookRideTab({ activeRide, onBookingSuccess }) {
   );
 }
 
-function RideHistoryTab({ history, loading }) {
+import * as ratingService from '../../services/ratingService';
+import { RatingStars } from '../../components/ui';
+
+function RideHistoryTab({ history, loading, onRefresh }) {
+  const [selectedRide, setSelectedRide] = useState(null);
+
   return (
     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
       <GlassCard level={2} style={{ padding: '40px' }}>
@@ -308,24 +313,164 @@ function RideHistoryTab({ history, loading }) {
         {loading ? <Spinner /> : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {history.map(ride => (
-              <div key={ride.ride_id} className="glass-1" style={{ padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-                  <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Car size={20} color="var(--text-muted)" /></div>
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>{ride.pickup_location.split(',')[0]} → {ride.dropoff_location?.split(',')[0] || 'Unknown'}</div>
-                    <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{new Date(ride.request_time).toLocaleDateString()} • {ride.vehicle_type}</div>
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div className="font-mono" style={{ fontWeight: 600, marginBottom: '4px' }}>${parseFloat(ride.fare).toFixed(2)}</div>
-                  <Badge status={ride.status === 'completed' ? 'Active' : 'Error'}>{ride.status}</Badge>
-                </div>
-              </div>
+              <RideHistoryItem key={ride.ride_id} ride={ride} onRate={() => setSelectedRide(ride)} />
             ))}
             {history.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No rides yet.</p>}
           </div>
         )}
       </GlassCard>
+
+      <AnimatePresence>
+        {selectedRide && (
+          <RatingModal 
+            ride={selectedRide} 
+            onClose={() => setSelectedRide(null)} 
+            onSuccess={() => {
+              setSelectedRide(null);
+              onRefresh();
+            }}
+          />
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+function RideHistoryItem({ ride, onRate }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="glass-1" style={{ borderRadius: '16px', overflow: 'hidden' }}>
+      <div 
+        onClick={() => setExpanded(!expanded)}
+        style={{ padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Car size={20} color={ride.status === 'Completed' ? 'var(--amber-core)' : 'var(--text-muted)'} />
+          </div>
+          <div>
+            <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>{ride.pickup_location.split(',')[0]} → {ride.dropoff_location?.split(',')[0] || 'Unknown'}</div>
+            <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{new Date(ride.request_time).toLocaleDateString()} • {ride.vehicle_type}</div>
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div style={{ textAlign: 'right' }}>
+            <div className="font-mono" style={{ fontWeight: 600, marginBottom: '4px' }}>PKR {parseFloat(ride.fare || 0).toFixed(2)}</div>
+            <Badge status={ride.status === 'Completed' ? 'Active' : 'Error'}>{ride.status}</Badge>
+          </div>
+          <motion.div animate={{ rotate: expanded ? 180 : 0 }}>
+            <ArrowRight size={18} style={{ transform: 'rotate(90deg)', opacity: 0.3 }} />
+          </motion.div>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }} 
+            animate={{ height: 'auto', opacity: 1 }} 
+            exit={{ height: 0, opacity: 0 }}
+            style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.1)' }}
+          >
+            <div style={{ padding: '24px 32px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+                <div>
+                  <p className="label-caps" style={{ fontSize: '10px', marginBottom: '12px' }}>Trip Details</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
+                    <div style={{ display: 'flex', gap: '8px' }}><Clock size={14} color="var(--text-muted)" /> <span>Requested: {new Date(ride.request_time).toLocaleTimeString()}</span></div>
+                    {ride.start_time && <div style={{ display: 'flex', gap: '8px' }}><Navigation size={14} color="var(--text-muted)" /> <span>Started: {new Date(ride.start_time).toLocaleTimeString()}</span></div>}
+                    {ride.end_time && <div style={{ display: 'flex', gap: '8px' }}><CheckCircle size={14} color="var(--text-muted)" /> <span>Ended: {new Date(ride.end_time).toLocaleTimeString()}</span></div>}
+                  </div>
+                </div>
+                <div>
+                  <p className="label-caps" style={{ fontSize: '10px', marginBottom: '12px' }}>Rating & Feedback</p>
+                  {ride.rider_has_rated ? (
+                    <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px' }}>
+                      <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Your Rating</p>
+                      <RatingStars value={ride.rider_rating_score || 5} size="sm" />
+                      {ride.rider_rating_comment && <p style={{ fontSize: '12px', marginTop: '8px', fontStyle: 'italic' }}>"{ride.rider_rating_comment}"</p>}
+                    </div>
+                  ) : (
+                    ride.status === 'Completed' && ride.payment_status === 'Paid' ? (
+                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); onRate(); }} style={{ color: 'var(--amber-core)', background: 'var(--amber-ghost)', width: '100%' }}>
+                        Rate Your Experience
+                      </Button>
+                    ) : (
+                      <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Rating unavailable</p>
+                    )
+                  )}
+                  
+                  {ride.driver_has_rated && (
+                    <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(255,191,0,0.05)', borderRadius: '10px', border: '1px solid rgba(255,191,0,0.1)' }}>
+                      <p style={{ fontSize: '11px', color: 'var(--amber-core)', marginBottom: '4px' }}>Rating Received</p>
+                      <RatingStars value={ride.driver_rating_score || 5} size="sm" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function RatingModal({ ride, onClose, onSuccess }) {
+  const [score, setScore] = useState(5);
+  const [comment, setComment] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      await ratingService.submitRating({
+        ride_id: ride.ride_id,
+        score,
+        comment
+      });
+      toast.success("Rating submitted!");
+      onSuccess();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to submit rating");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
+    >
+      <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} style={{ width: '100%', maxWidth: '440px' }}>
+        <GlassCard level={3} style={{ padding: '40px', textAlign: 'center' }}>
+          <button onClick={onClose} style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
+          
+          <div style={{ width: '64px', height: '64px', borderRadius: '20px', background: 'var(--amber-ghost)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--amber-core)', margin: '0 auto 24px' }}>
+            <Star size={32} />
+          </div>
+          
+          <h3 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>Rate Your Trip</h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '32px' }}>How was your ride to {ride.dropoff_location?.split(',')[0]}?</p>
+          
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+            <RatingStars mode="input" size="lg" value={score} onChange={setScore} />
+          </div>
+          
+          <textarea 
+            placeholder="Share your experience..."
+            value={comment}
+            onChange={e => setComment(e.target.value)}
+            style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '16px', color: 'white', height: '100px', resize: 'none', marginBottom: '32px' }}
+          />
+          
+          <Button block size="lg" onClick={handleSubmit} disabled={loading}>
+            {loading ? <Spinner size={20} /> : 'Submit Review'}
+          </Button>
+        </GlassCard>
+      </motion.div>
     </motion.div>
   );
 }

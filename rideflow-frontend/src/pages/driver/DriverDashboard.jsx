@@ -114,7 +114,7 @@ export default function DriverDashboard() {
             { id: 'overview', label: 'Overview', icon: TrendingUp },
             { id: 'rides', label: 'Current Task', icon: Navigation },
             { id: 'earnings', label: 'Earnings', icon: DollarSign },
-            { id: 'profile', label: 'Vehicle', icon: Car },
+            { id: 'profile', label: 'Profile', icon: User },
           ].map(item => (
             <button key={item.id} onClick={() => setActiveTab(item.id)} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 20px', borderRadius: '12px', border: 'none', cursor: 'pointer', textAlign: 'left', background: activeTab === item.id ? 'var(--amber-ghost)' : 'transparent', color: activeTab === item.id ? 'var(--amber-core)' : 'var(--text-muted)', transition: 'all 0.2s', fontWeight: activeTab === item.id ? 600 : 500 }}>
               <item.icon size={20} />
@@ -146,7 +146,7 @@ export default function DriverDashboard() {
           {activeTab === 'overview' && <OverviewTab key="overview" stats={stats} isActive={isActive} activeRide={activeRide} />}
           {activeTab === 'rides' && <ActiveRideTab key="rides" activeRide={activeRide} />}
           {activeTab === 'earnings' && <EarningsTab key="earnings" />}
-          {activeTab === 'profile' && <VehicleTab key="profile" vehicles={vehicles} onAdd={fetchVehicles} />}
+          {activeTab === 'profile' && <ProfileTab key="profile" user={user} vehicles={vehicles} onAddVehicle={fetchVehicles} />}
         </AnimatePresence>
       </main>
     </div>
@@ -217,8 +217,12 @@ function ActiveRideTab({ activeRide }) {
   );
 }
 
+import * as ratingService from '../../services/ratingService';
+import { RatingStars } from '../../components/ui';
+
 function EarningsTab() {
   const [history, setHistory] = useState([]);
+  const [selectedRide, setSelectedRide] = useState(null);
   const { loading, execute } = useApi();
 
   const fetchHistory = useCallback(async () => {
@@ -251,13 +255,20 @@ function EarningsTab() {
                     <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>#{ride.ride_id} • {new Date(ride.end_time).toLocaleDateString()}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--amber-core)' }} />
-                      <p style={{ fontSize: '14px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}>{ride.pickup_location}</p>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#EF4444' }} />
-                      <p style={{ fontSize: '14px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}>{ride.dropoff_location}</p>
+                    <p style={{ fontSize: '14px', fontWeight: 600, color: 'white' }}>{ride.pickup_location.split(',')[0]} → {ride.dropoff_location.split(',')[0]}</p>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '8px' }}>
+                      <div style={{ padding: '4px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px' }}>
+                        <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>Rider Rated You</span>
+                        <RatingStars value={ride.rider_rating_score || 0} size="sm" />
+                      </div>
+                      <div style={{ padding: '4px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px' }}>
+                        <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>You Rated Rider</span>
+                        {ride.driver_has_rated ? (
+                          <RatingStars value={ride.driver_rating_score || 0} size="sm" />
+                        ) : (
+                          <button onClick={() => setSelectedRide(ride)} style={{ background: 'none', border: 'none', color: 'var(--amber-core)', fontSize: '11px', cursor: 'pointer', padding: 0 }}>Rate Rider</button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -305,11 +316,156 @@ function EarningsTab() {
           </GlassCard>
         </div>
       </div>
+
+      <AnimatePresence>
+        {selectedRide && (
+          <RatingModal 
+            ride={selectedRide} 
+            onClose={() => setSelectedRide(null)} 
+            onSuccess={() => {
+              setSelectedRide(null);
+              fetchHistory();
+            }}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
 
-  const VehicleTab = ({ vehicles, onAdd }) => {
+function ProfileTab({ user, vehicles, onAddVehicle }) {
+  const [ratingsData, setRatingsData] = useState({ ratings: [], summary: null });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchRatings = async () => {
+      try {
+        const res = await ratingService.getMyRatings();
+        setRatingsData(res.data);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRatings();
+  }, []);
+
+  const summary = ratingsData.summary || { avg_rating: 0, total_ratings: 0 };
+  const stars = ['five_star', 'four_star', 'three_star', 'two_star', 'one_star'];
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', marginBottom: '32px' }}>
+        <GlassCard level={2} style={{ padding: '40px' }}>
+          <h3 style={{ fontSize: '1.25rem', marginBottom: '32px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Star size={20} color="var(--amber-core)" /> My Reputation
+          </h3>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '40px', marginBottom: '48px' }}>
+            <div style={{ textAlign: 'center' }}>
+              <h2 style={{ fontSize: '3.5rem', fontWeight: 800, color: 'var(--amber-core)', lineHeight: 1 }}>{parseFloat(summary.avg_rating || 0).toFixed(1)}</h2>
+              <RatingStars value={summary.avg_rating || 0} size="md" />
+              <p style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '8px' }}>Based on {summary.total_ratings} ratings</p>
+            </div>
+            
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {stars.map((key, i) => {
+                const count = summary[key] || 0;
+                const percent = summary.total_ratings > 0 ? (count / summary.total_ratings) * 100 : 0;
+                return (
+                  <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', width: '40px' }}>{5 - i} stars</span>
+                    <div style={{ flex: 1, height: '6px', background: 'rgba(255,255,255,0.03)', borderRadius: '3px', overflow: 'hidden' }}>
+                      <motion.div 
+                        initial={{ width: 0 }} 
+                        animate={{ width: `${percent}%` }} 
+                        style={{ height: '100%', background: 'var(--amber-core)', borderRadius: '3px' }} 
+                      />
+                    </div>
+                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', width: '30px', textAlign: 'right' }}>{Math.round(percent)}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '20px', color: 'var(--text-secondary)' }}>Recent Feedback</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {ratingsData.ratings.slice(0, 5).map(r => (
+              <div key={r.rating_id} style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <RatingStars value={r.score} size="sm" />
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{new Date(r.timestamp).toLocaleDateString()}</span>
+                </div>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>"{r.comment || 'No comment left'}"</p>
+                <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '8px' }}>— Anonymous Rider</p>
+              </div>
+            ))}
+            {ratingsData.ratings.length === 0 && <p style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>No reviews yet.</p>}
+          </div>
+        </GlassCard>
+
+        <VehicleTab vehicles={vehicles} onAdd={onAddVehicle} />
+      </div>
+    </motion.div>
+  );
+}
+
+function RatingModal({ ride, onClose, onSuccess }) {
+  const [score, setScore] = useState(5);
+  const [comment, setComment] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      await ratingService.submitRating({
+        ride_id: ride.ride_id,
+        score,
+        comment
+      });
+      toast.success("Feedback submitted!");
+      onSuccess();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to submit rating");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
+    >
+      <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} style={{ width: '100%', maxWidth: '440px' }}>
+        <GlassCard level={3} style={{ padding: '40px', textAlign: 'center' }}>
+          <button onClick={onClose} style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
+          <div style={{ width: '64px', height: '64px', borderRadius: '20px', background: 'var(--amber-ghost)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--amber-core)', margin: '0 auto 24px' }}>
+            <User size={32} />
+          </div>
+          <h3 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>Rate Passenger</h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '32px' }}>How was your experience with the rider?</p>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+            <RatingStars mode="input" size="lg" value={score} onChange={setScore} />
+          </div>
+          <textarea 
+            placeholder="Optional: Note about this rider..."
+            value={comment}
+            onChange={e => setComment(e.target.value)}
+            style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '16px', color: 'white', height: '100px', resize: 'none', marginBottom: '32px' }}
+          />
+          <Button block size="lg" onClick={handleSubmit} disabled={loading}>
+            {loading ? <Spinner size={20} /> : 'Submit Review'}
+          </Button>
+        </GlassCard>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function VehicleTab({ vehicles, onAdd }) {
     const [form, setForm] = useState({ 
       make: '', 
       model: '', 

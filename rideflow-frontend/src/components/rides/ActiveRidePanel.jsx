@@ -6,14 +6,17 @@ import {
 } from 'lucide-react';
 import { GlassCard, Badge, Button, Spinner } from '../ui';
 import * as rideService from '../../services/rideService';
+import * as ratingService from '../../services/ratingService';
 import useRideStore from '../../store/rideStore';
 import toast from 'react-hot-toast';
 import RideMap from '../maps/RideMap';
+import { GlassCard, Badge, Button, Spinner, RatingStars } from '../ui';
 
 export default function ActiveRidePanel({ activeRide }) {
   const [loading, setLoading] = useState(false);
   const [timer, setTimer] = useState('00:00:00');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [rating, setRating] = useState({ score: 5, comment: '', submitted: false, loading: false });
   const { clearRide } = useRideStore();
 
   // Trip Timer Logic
@@ -31,6 +34,27 @@ export default function ActiveRidePanel({ activeRide }) {
       return () => clearInterval(interval);
     }
   }, [activeRide.status, activeRide.start_time]);
+
+  const handleSubmitRating = async () => {
+    setRating(p => ({ ...p, loading: true }));
+    try {
+      await ratingService.submitRating({
+        ride_id: activeRide.ride_id,
+        score: rating.score,
+        comment: rating.comment
+      });
+      setRating(p => ({ ...p, submitted: true }));
+      toast.success("Feedback saved!");
+    } catch (err) {
+      if (err.response?.status === 400 && err.response?.data?.message?.includes('already rated')) {
+        setRating(p => ({ ...p, submitted: true }));
+      } else {
+        toast.error("Failed to submit rating");
+      }
+    } finally {
+      setRating(p => ({ ...p, loading: false }));
+    }
+  };
 
   const handleAction = async (action) => {
     setLoading(true);
@@ -172,6 +196,37 @@ export default function ActiveRidePanel({ activeRide }) {
                   </motion.div>
                 )}
               </div>
+
+              {activeRide.payment_status === 'Paid' && !rating.submitted && (
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-1" style={{ padding: '24px', marginBottom: '32px', textAlign: 'center' }}>
+                  <p style={{ marginBottom: '16px', fontSize: '14px', fontWeight: 600 }}>How was {activeRide.rider?.name} as a passenger?</p>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+                    <RatingStars mode="input" size="lg" value={rating.score} onChange={val => setRating(p => ({ ...p, score: val }))} />
+                  </div>
+                  <textarea 
+                    placeholder="Optional: Note about this rider..."
+                    value={rating.comment}
+                    onChange={e => setRating(p => ({ ...p, comment: e.target.value }))}
+                    maxLength={200}
+                    style={{ 
+                      width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', 
+                      borderRadius: '12px', padding: '12px', color: 'white', fontSize: '14px', resize: 'none', height: '60px', marginBottom: '16px'
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <Button variant="secondary" onClick={() => setRating(p => ({ ...p, submitted: true }))} style={{ flex: 1 }}>Skip</Button>
+                    <Button onClick={handleSubmitRating} disabled={rating.loading} style={{ flex: 1 }}>
+                      {rating.loading ? <Spinner size={18} /> : 'Submit'}
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
+
+              {activeRide.payment_status === 'Paid' && rating.submitted && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ textAlign: 'center', padding: '20px', background: 'var(--amber-ghost)', borderRadius: '16px', marginBottom: '32px', color: 'var(--amber-core)', fontWeight: 600 }}>
+                  Feedback shared! ⭐
+                </motion.div>
+              )}
             </motion.div>
           ) : (
             <motion.div key="active-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>

@@ -4,8 +4,9 @@ import {
   Car, MapPin, Navigation, Clock, CreditCard, Star, Phone, 
   CheckCircle, ChevronRight, Wallet, Zap, Timer, Receipt, Search
 } from 'lucide-react';
-import { GlassCard, Badge, Button, Input, Spinner } from '../ui';
+import { GlassCard, Badge, Button, Input, Spinner, RatingStars } from '../ui';
 import * as rideService from '../../services/rideService';
+import * as ratingService from '../../services/ratingService';
 import useRideStore from '../../store/rideStore';
 import toast from 'react-hot-toast';
 import RideMap from '../maps/RideMap';
@@ -23,6 +24,7 @@ export default function ActiveRideTracker({ activeRide, onPaymentSuccess }) {
   const [isPaying, setIsPaying] = useState(false);
   const [receipt, setReceipt] = useState(null);
   const [timer, setTimer] = useState('00:00:00');
+  const [rating, setRating] = useState({ score: 5, comment: '', submitted: false, loading: false });
   const { clearRide } = useRideStore();
 
   const currentStepIndex = STEPS.findIndex(s => s.status === activeRide.status || (activeRide.status === 'Driver En Route' && s.status === 'Accepted'));
@@ -56,6 +58,27 @@ export default function ActiveRideTracker({ activeRide, onPaymentSuccess }) {
     }
   };
 
+  const handleSubmitRating = async () => {
+    setRating(p => ({ ...p, loading: true }));
+    try {
+      await ratingService.submitRating({
+        ride_id: activeRide.ride_id,
+        score: rating.score,
+        comment: rating.comment
+      });
+      setRating(p => ({ ...p, submitted: true }));
+      toast.success("Thank you for your feedback!");
+    } catch (err) {
+      if (err.response?.status === 400 && err.response?.data?.message?.includes('already rated')) {
+        setRating(p => ({ ...p, submitted: true }));
+      } else {
+        toast.error("Failed to submit rating");
+      }
+    } finally {
+      setRating(p => ({ ...p, loading: false }));
+    }
+  };
+
   if (receipt) {
     return (
       <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
@@ -82,14 +105,42 @@ export default function ActiveRideTracker({ activeRide, onPaymentSuccess }) {
             </div>
           </div>
 
-          <div style={{ marginBottom: '32px' }}>
-            <p style={{ marginBottom: '16px', fontSize: '14px' }}>Rate your experience</p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
-              {[1, 2, 3, 4, 5].map(s => <Star key={s} size={28} className="cursor-pointer hover:scale-110 transition-transform" color="var(--amber-core)" />)}
-            </div>
-          </div>
+          <AnimatePresence mode="wait">
+            {!rating.submitted ? (
+              <motion.div key="rating-form" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                <div className="glass-1" style={{ padding: '24px', marginBottom: '32px', textAlign: 'center' }}>
+                  <p style={{ marginBottom: '16px', fontSize: '14px', fontWeight: 600 }}>How was your ride with {activeRide.driver?.name}?</p>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+                    <RatingStars mode="input" size="lg" value={rating.score} onChange={val => setRating(p => ({ ...p, score: val }))} />
+                  </div>
+                  <textarea 
+                    placeholder="Optional: Share your experience..."
+                    value={rating.comment}
+                    onChange={e => setRating(p => ({ ...p, comment: e.target.value }))}
+                    maxLength={200}
+                    style={{ 
+                      width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', 
+                      borderRadius: '12px', padding: '12px', color: 'white', fontSize: '14px', resize: 'none', height: '80px', marginBottom: '16px'
+                    }}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <Button block onClick={handleSubmitRating} disabled={rating.loading}>
+                      {rating.loading ? <Spinner size={18} /> : 'Submit Rating'}
+                    </Button>
+                    <button onClick={() => setRating(p => ({ ...p, submitted: true }))} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '13px', cursor: 'pointer' }}>Skip for now</button>
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div key="rating-thanks" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} style={{ marginBottom: '32px' }}>
+                <div style={{ padding: '24px', background: 'var(--amber-ghost)', borderRadius: '16px', color: 'var(--amber-core)', fontWeight: 600 }}>
+                  Thanks for your feedback! ⭐
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          <Button block onClick={() => clearRide()}>Back to Home</Button>
+          <Button block variant="secondary" onClick={() => clearRide()}>Done</Button>
         </GlassCard>
       </motion.div>
     );
