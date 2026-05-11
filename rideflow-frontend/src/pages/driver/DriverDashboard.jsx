@@ -333,84 +333,208 @@ function EarningsTab() {
   );
 }
 
+import * as uploadService from '../../services/uploadService';
+
 function ProfileTab({ user, vehicles, onAddVehicle }) {
+  const [subTab, setSubTab] = useState('reputation'); // 'reputation' | 'vehicles' | 'settings'
+  const [profileForm, setProfileForm] = useState({ full_name: user?.full_name || '', phone: user?.phone || '' });
+  const [driverForm, setDriverForm] = useState({ current_city: user?.current_city || '' });
+  const [passForm, setPassForm] = useState({ current_password: '', new_password: '', confirm_password: '' });
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [showPass, setShowPass] = useState(false);
+  const { loading, execute } = useApi();
+  const { clearAuth } = useAuthStore();
+
   const [ratingsData, setRatingsData] = useState({ ratings: [], summary: null });
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchRatings = async () => {
-      try {
-        const res = await ratingService.getMyRatings();
-        setRatingsData(res.data);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchRatings();
-  }, []);
+    if (subTab === 'reputation') {
+      ratingService.getMyRatings().then(res => setRatingsData(res.data)).catch(console.error);
+    }
+  }, [subTab]);
+
+  const handleUpdateProfile = async () => {
+    await execute(() => authService.updateProfile(profileForm), {
+      successMessage: "Personal info updated",
+      onSuccess: (data) => useAuthStore.getState().setUser({ ...user, ...data.data.user })
+    });
+  };
+
+  const handleUpdateDriver = async () => {
+    await execute(() => driverService.updateDriverProfile(driverForm), {
+      successMessage: "Operational settings updated",
+      onSuccess: (data) => useAuthStore.getState().setUser({ ...user, ...data.data.driver })
+    });
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (passForm.new_password !== passForm.confirm_password) return toast.error("Passwords do not match");
+    await execute(() => authService.changePassword(passForm), {
+      successMessage: "Security updated. Re-login required.",
+      onSuccess: () => setTimeout(() => { clearAuth(); window.location.href = '/login'; }, 2000)
+    });
+  };
+
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file || file.size > 5 * 1024 * 1024) return toast.error("Invalid file or size > 5MB");
+    setUploading(true);
+    try {
+      const res = await uploadService.uploadProfilePhoto(file);
+      useAuthStore.getState().setUser({ ...user, profile_photo: res.data.profile_photo });
+      toast.success("Profile photo updated");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const summary = ratingsData.summary || { avg_rating: 0, total_ratings: 0 };
-  const stars = ['five_star', 'four_star', 'three_star', 'two_star', 'one_star'];
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', marginBottom: '32px' }}>
-        <GlassCard level={2} style={{ padding: '40px' }}>
-          <h3 style={{ fontSize: '1.25rem', marginBottom: '32px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Star size={20} color="var(--amber-core)" /> My Reputation
-          </h3>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '40px', marginBottom: '48px' }}>
-            <div style={{ textAlign: 'center' }}>
-              <h2 style={{ fontSize: '3.5rem', fontWeight: 800, color: 'var(--amber-core)', lineHeight: 1 }}>{parseFloat(summary.avg_rating || 0).toFixed(1)}</h2>
-              <RatingStars value={summary.avg_rating || 0} size="md" />
-              <p style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '8px' }}>Based on {summary.total_ratings} ratings</p>
-            </div>
-            
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {stars.map((key, i) => {
-                const count = summary[key] || 0;
-                const percent = summary.total_ratings > 0 ? (count / summary.total_ratings) * 100 : 0;
-                return (
-                  <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', width: '40px' }}>{5 - i} stars</span>
-                    <div style={{ flex: 1, height: '6px', background: 'rgba(255,255,255,0.03)', borderRadius: '3px', overflow: 'hidden' }}>
-                      <motion.div 
-                        initial={{ width: 0 }} 
-                        animate={{ width: `${percent}%` }} 
-                        style={{ height: '100%', background: 'var(--amber-core)', borderRadius: '3px' }} 
-                      />
-                    </div>
-                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', width: '30px', textAlign: 'right' }}>{Math.round(percent)}%</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '20px', color: 'var(--text-secondary)' }}>Recent Feedback</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {ratingsData.ratings.slice(0, 5).map(r => (
-              <div key={r.rating_id} style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <RatingStars value={r.score} size="sm" />
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{new Date(r.timestamp).toLocaleDateString()}</span>
-                </div>
-                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>"{r.comment || 'No comment left'}"</p>
-                <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '8px' }}>— Anonymous Rider</p>
-              </div>
-            ))}
-            {ratingsData.ratings.length === 0 && <p style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>No reviews yet.</p>}
-          </div>
-        </GlassCard>
-
-        <VehicleTab vehicles={vehicles} onAdd={onAddVehicle} />
+      <div style={{ display: 'flex', gap: '16px', marginBottom: '32px' }}>
+        {[
+          { id: 'reputation', label: 'Reputation', icon: Star },
+          { id: 'vehicles', label: 'My Vehicles', icon: Car },
+          { id: 'settings', label: 'Account Settings', icon: Settings },
+        ].map(t => (
+          <button key={t.id} onClick={() => setSubTab(t.id)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', borderRadius: '12px', border: 'none', background: subTab === t.id ? 'var(--amber-ghost)' : 'transparent', color: subTab === t.id ? 'var(--amber-core)' : 'var(--text-muted)', cursor: 'pointer', fontWeight: 600, transition: '0.2s' }}>
+            <t.icon size={16} /> {t.label}
+          </button>
+        ))}
       </div>
+
+      <AnimatePresence mode="wait">
+        {subTab === 'reputation' && (
+          <motion.div key="rep" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+              <GlassCard level={2} style={{ padding: '40px' }}>
+                <h3 style={{ fontSize: '1.25rem', marginBottom: '32px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <Star size={20} color="var(--amber-core)" /> Reputational Analytics
+                </h3>
+                <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+                  <h2 style={{ fontSize: '4rem', fontWeight: 800, color: 'var(--amber-core)', marginBottom: '8px' }}>{parseFloat(summary.avg_rating || 0).toFixed(1)}</h2>
+                  <RatingStars value={summary.avg_rating || 0} size="md" />
+                  <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '12px' }}>{summary.total_ratings} verified reviews</p>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {['five_star', 'four_star', 'three_star', 'two_star', 'one_star'].map((key, i) => {
+                    const percent = summary.total_ratings > 0 ? ((summary[key] || 0) / summary.total_ratings) * 100 : 0;
+                    return (
+                      <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', width: '40px' }}>{5 - i} star</span>
+                        <div style={{ flex: 1, height: '6px', background: 'rgba(255,255,255,0.03)', borderRadius: '3px', overflow: 'hidden' }}>
+                          <motion.div initial={{ width: 0 }} animate={{ width: `${percent}%` }} style={{ height: '100%', background: 'var(--amber-core)' }} />
+                        </div>
+                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', width: '30px', textAlign: 'right' }}>{Math.round(percent)}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </GlassCard>
+              <GlassCard level={2} style={{ padding: '40px' }}>
+                <h4 className="label-caps" style={{ marginBottom: '24px' }}>Latest Feedback</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {ratingsData.ratings.slice(0, 4).map(r => (
+                    <div key={r.rating_id} style={{ padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <RatingStars value={r.score} size="sm" />
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{new Date(r.timestamp).toLocaleDateString()}</span>
+                      </div>
+                      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>"{r.comment || 'No comment provided'}"</p>
+                    </div>
+                  ))}
+                  {ratingsData.ratings.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>No reviews yet.</p>}
+                </div>
+              </GlassCard>
+            </div>
+          </motion.div>
+        )}
+
+        {subTab === 'vehicles' && (
+          <motion.div key="veh" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
+            <VehicleTab vehicles={vehicles} onAdd={onAddVehicle} />
+          </motion.div>
+        )}
+
+        {subTab === 'settings' && (
+          <motion.div key="set" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '32px' }}>
+              <GlassCard level={2} style={{ padding: '40px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '32px', marginBottom: '48px' }}>
+                  <div style={{ position: 'relative' }}>
+                    <div style={{ width: '90px', height: '90px', borderRadius: '24px', overflow: 'hidden', background: 'var(--bg-glass)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {user?.profile_photo ? <img src={user.profile_photo} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <User size={32} color="var(--amber-core)" />}
+                    </div>
+                    <label style={{ position: 'absolute', inset: 0, borderRadius: '24px', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', opacity: 0 }} onMouseEnter={e => e.currentTarget.style.opacity = 1} onMouseLeave={e => e.currentTarget.style.opacity = 0}>
+                      <Clock size={20} color="white" />
+                      <input type="file" hidden onChange={handlePhotoChange} accept="image/*" />
+                    </label>
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.25rem' }}>Personal Profile</h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Update your visible identity and contact details.</p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
+                  <Input label="Full Name" value={profileForm.full_name} onChange={e => setProfileForm(p => ({ ...p, full_name: e.target.value }))} />
+                  <Input label="Phone Number" value={profileForm.phone} onChange={e => setProfileForm(p => ({ ...p, phone: e.target.value }))} />
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <Input label="Email (Login ID)" value={user?.email} disabled />
+                  </div>
+                </div>
+                <Button block onClick={handleUpdateProfile} disabled={loading}>Save Profile Changes</Button>
+
+                <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: '40px 0' }} />
+
+                <h3 style={{ fontSize: '1.25rem', marginBottom: '24px' }}>Operational Settings</h3>
+                <div style={{ marginBottom: '32px' }}>
+                  <Input label="Current Operating City" value={driverForm.current_city} onChange={e => setDriverForm(p => ({ ...p, current_city: e.target.value }))} />
+                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>* This helps the system match you with riders in your immediate vicinity.</p>
+                </div>
+                <Button variant="secondary" block onClick={handleUpdateDriver} disabled={loading}>Update City</Button>
+              </GlassCard>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                <GlassCard level={3} style={{ padding: '32px' }}>
+                  <h4 className="label-caps" style={{ marginBottom: '24px' }}>Security Credentials</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>License Number</span>
+                      <span className="font-mono" style={{ fontSize: '14px', fontWeight: 600 }}>••••••{user?.license_number?.slice(-4)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>CNIC (Masked)</span>
+                      <span className="font-mono" style={{ fontSize: '14px', fontWeight: 600 }}>•••••-•••••••-•</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Verification</span>
+                      <Badge status={user?.verification_status === 'Verified' ? 'Active' : 'Warning'}>{user?.verification_status}</Badge>
+                    </div>
+                  </div>
+                </GlassCard>
+
+                <GlassCard level={2} style={{ padding: '32px' }}>
+                  <h4 className="label-caps" style={{ marginBottom: '24px' }}>Change Password</h4>
+                  <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <Input type="password" placeholder="Current Password" value={passForm.current_password} onChange={e => setPassForm(p => ({ ...p, current_password: e.target.value }))} required />
+                    <Input type="password" placeholder="New Password" value={passForm.new_password} onChange={e => setPassForm(p => ({ ...p, new_password: e.target.value }))} required />
+                    <Input type="password" placeholder="Confirm New" value={passForm.confirm_password} onChange={e => setPassForm(p => ({ ...p, confirm_password: e.target.value }))} required />
+                    <Button block variant="ghost" disabled={loading} type="submit">Update Password</Button>
+                  </form>
+                </GlassCard>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
+
 
 function RatingModal({ ride, onClose, onSuccess }) {
   const [score, setScore] = useState(5);

@@ -23,6 +23,9 @@ import {
   logoutUser,
   refreshAccessToken,
   getCurrentUser,
+  updateProfile,
+  uploadProfilePhoto,
+  changePassword,
 } from "../controllers/auth.controller.js";
 
 import { USER_ROLES } from "../constants.js";
@@ -116,5 +119,23 @@ router.post("/refresh-token", refreshAccessToken);
  * Protected. Returns the currently authenticated user's profile.
  */
 router.get("/me", verifyJWT, getCurrentUser);
+
+/**
+ * PATCH /api/v1/auth/profile
+ * Protected. Updates user profile (name, phone).
+ */
+router.patch("/profile", verifyJWT, updateProfile);
+
+/**
+ * POST /api/v1/auth/profile/photo
+ * Protected. Updates profile photo via multipart/form-data.
+ */
+router.post("/profile/photo", verifyJWT, upload.single("photo"), uploadProfilePhoto);
+
+/**
+ * PATCH /api/v1/auth/password
+ * Protected. Updates password.
+ */
+router.patch("/password", verifyJWT, changePassword);
 
 export default router;

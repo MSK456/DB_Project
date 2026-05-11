@@ -358,10 +358,111 @@ const getCurrentUser = asyncHandler(async (req, res) => {
     );
 });
 
+/**
+ * PATCH /api/v1/auth/profile
+ */
+const updateProfile = asyncHandler(async (req, res) => {
+  const { full_name, phone } = req.body;
+  const userId = req.user.userId;
+
+  if (full_name && full_name.length < 2) {
+    throw new ApiError(400, "Full name must be at least 2 characters");
+  }
+
+  if (phone) {
+    if (!/^\d{10,15}$/.test(phone)) {
+      throw new ApiError(400, "Invalid phone number format");
+    }
+    const [existing] = await pool.execute(
+      'SELECT user_id FROM User WHERE phone = ? AND user_id != ?',
+      [phone, userId]
+    );
+    if (existing.length > 0) {
+      throw new ApiError(409, "This phone number is already in use.");
+    }
+  }
+
+  await pool.execute(
+    'UPDATE User SET full_name = COALESCE(?, full_name), phone = COALESCE(?, phone) WHERE user_id = ?',
+    [full_name || null, phone || null, userId]
+  );
+
+  const updatedUser = await findUserById(userId);
+  return res.status(200).json(new ApiResponse(200, { user: sanitiseUser(updatedUser) }, "Profile updated"));
+});
+
+/**
+ * POST /api/v1/auth/profile/photo
+ */
+const uploadProfilePhoto = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, "No image file provided");
+  }
+
+  const uploadResult = await uploadOnCloudinary(req.file.path, {
+    folder: 'rideflow/profiles',
+    transformation: [
+      { width: 400, height: 400, crop: 'fill', gravity: 'face' },
+      { quality: 'auto', fetch_format: 'auto' }
+    ]
+  });
+
+  if (!uploadResult) {
+    throw new ApiError(500, "Failed to upload photo to Cloudinary");
+  }
+
+  const profile_photo = uploadResult.secure_url;
+  await pool.execute('UPDATE User SET profile_photo = ? WHERE user_id = ?', [profile_photo, req.user.userId]);
+
+  return res.status(200).json(new ApiResponse(200, { profile_photo }, "Profile photo updated"));
+});
+
+/**
+ * PATCH /api/v1/auth/password
+ */
+const changePassword = asyncHandler(async (req, res) => {
+  const { current_password, new_password, confirm_password } = req.body;
+  const userId = req.user.userId;
+
+  if (new_password !== confirm_password) {
+    throw new ApiError(400, "Passwords do not match");
+  }
+
+  if (new_password.length < 8) {
+    throw new ApiError(400, "New password must be at least 8 characters long");
+  }
+
+  const user = await pool.execute('SELECT password_hash FROM User WHERE user_id = ?', [userId])
+    .then(([rows]) => rows[0]);
+
+  const isMatch = await bcrypt.compare(current_password, user.password_hash);
+  if (!isMatch) {
+    throw new ApiError(401, "Current password is incorrect");
+  }
+
+  const isSame = await bcrypt.compare(new_password, user.password_hash);
+  if (isSame) {
+    throw new ApiError(400, "New password must be different from current password");
+  }
+
+  const hashed = await bcrypt.hash(new_password, 12);
+  await pool.execute('UPDATE User SET password_hash = ?, refresh_token = NULL WHERE user_id = ?', [hashed, userId]);
+
+  return res
+    .status(200)
+    .clearCookie("accessToken", accessCookieOptions)
+    .clearCookie("refreshToken", refreshCookieOptions)
+    .json(new ApiResponse(200, null, "Password changed. Please log in again."));
+});
+
 export {
   registerUser,
   loginUser,
   logoutUser,
   refreshAccessToken,
   getCurrentUser,
+  updateProfile,
+  uploadProfilePhoto,
+  changePassword
 };
+

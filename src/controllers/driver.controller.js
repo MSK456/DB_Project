@@ -103,4 +103,21 @@ const fetchDriverEarnings = asyncHandler(async (req, res) => {
   );
 });
 
-export { toggleAvailability, fetchDriverProfile, fetchDriverStats, handleUpdateLocation, fetchDriverEarnings };
+/**
+ * PATCH /api/v1/driver/profile
+ */
+const updateDriverProfile = asyncHandler(async (req, res) => {
+  const { current_city } = req.body;
+  const driverId = req.user.userId;
+
+  await pool.execute(
+    'UPDATE Driver SET current_city = COALESCE(?, current_city) WHERE driver_id = ?',
+    [current_city || null, driverId]
+  );
+
+  const updatedProfile = await getDriverProfile(driverId);
+  return res.status(200).json(new ApiResponse(200, updatedProfile, "Driver profile updated"));
+});
+
+export { toggleAvailability, fetchDriverProfile, fetchDriverStats, handleUpdateLocation, fetchDriverEarnings, updateDriverProfile };
+

@@ -20,7 +20,7 @@ cloudinary.config({
  * @param {string} localFilePath - Absolute or relative path to the temp file on disk.
  * @returns {Promise<object|null>} Cloudinary upload response object, or null on failure.
  */
-const uploadOnCloudinary = async (localFilePath) => {
+const uploadOnCloudinary = async (localFilePath, options = {}) => {
   try {
     if (!localFilePath) {
       console.warn("uploadOnCloudinary: No local file path provided.");
@@ -29,7 +29,9 @@ const uploadOnCloudinary = async (localFilePath) => {
 
     const response = await cloudinary.uploader.upload(localFilePath, {
       resource_type: "auto",
+      ...options
     });
+
 
     // Remove the temp file after successful upload.
     fs.unlinkSync(localFilePath);

@@ -14,3 +14,7 @@ export const getStats = () =>
 
 export const updateLocation = (coords) =>
   api.patch('/driver/location', coords).then(r => r.data);
+
+export const updateDriverProfile = (data) =>
+  api.patch('/driver/profile', data).then(r => r.data);
+

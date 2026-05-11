@@ -10,7 +10,8 @@ import {
   fetchDriverProfile,
   fetchDriverStats,
   handleUpdateLocation,
-  fetchDriverEarnings
+  fetchDriverEarnings,
+  updateDriverProfile
 } from "../controllers/driver.controller.js";
 
 const router = Router();
@@ -20,8 +21,10 @@ router.use(verifyJWT, authorizeRoles("Driver"));
 
 router.patch("/availability", validateBody(updateAvailabilitySchema), toggleAvailability);
 router.get("/profile", fetchDriverProfile);
+router.patch("/profile", updateDriverProfile);
 router.get("/stats", fetchDriverStats);
 router.get("/earnings", fetchDriverEarnings);
 router.patch("/location", handleUpdateLocation);
 
 export default router;
+

@@ -509,18 +509,177 @@ function WalletTab({ balance, onRefresh }) {
   );
 }
 
+import * as uploadService from '../../services/uploadService';
+
 function AccountTab({ user }) {
+  const [activeSubTab, setActiveSubTab] = useState('personal'); // 'personal' | 'security'
+  const [profileForm, setProfileForm] = useState({ full_name: user?.full_name || '', phone: user?.phone || '' });
+  const [passForm, setPassForm] = useState({ current_password: '', new_password: '', confirm_password: '' });
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [showPass, setShowPass] = useState(false);
+  const { loading, execute } = useApi();
+  const { clearAuth } = useAuthStore();
+
+  const isFormChanged = profileForm.full_name !== user?.full_name || profileForm.phone !== user?.phone;
+
+  // Monitor upload progress globally
+  useEffect(() => {
+    window.onUploadProgress = (p) => setProgress(p);
+    return () => { window.onUploadProgress = null; };
+  }, []);
+
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) return toast.error("File size must be less than 5MB");
+
+    setUploading(true);
+    try {
+      const res = await uploadService.uploadProfilePhoto(file);
+      useAuthStore.getState().setUser({ ...user, profile_photo: res.data.profile_photo });
+      toast.success("Profile photo updated!");
+    } catch (err) {
+      toast.error("Upload failed");
+    } finally {
+      setUploading(false);
+      setProgress(0);
+    }
+  };
+
+  const handleUpdateProfile = async () => {
+    await execute(() => authService.updateProfile(profileForm), {
+      successMessage: "Profile updated!",
+      onSuccess: (data) => {
+        useAuthStore.getState().setUser({ ...user, ...data.data.user });
+      }
+    });
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (passForm.new_password !== passForm.confirm_password) return toast.error("Passwords do not match");
+
+    await execute(() => authService.changePassword(passForm), {
+      successMessage: "Password updated. Please log in again.",
+      onSuccess: () => {
+        setTimeout(() => {
+          clearAuth();
+          window.location.href = '/login';
+        }, 2000);
+      }
+    });
+  };
+
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-      <GlassCard level={2} style={{ padding: '40px' }}>
-        <h3 style={{ fontSize: '1.5rem', marginBottom: '32px' }}>Profile Settings</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-          <Input label="Full Name" value={user?.full_name} disabled />
-          <Input label="Email" value={user?.email} disabled />
-          <Input label="Phone" value={user?.phone || 'Not set'} disabled />
-          <Input label="Member Since" value={new Date(user?.created_at).toLocaleDateString()} disabled />
+      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '40px' }}>
+        {/* Sidebar Navigation */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <button onClick={() => setActiveSubTab('personal')} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px 20px', borderRadius: '12px', border: 'none', background: activeSubTab === 'personal' ? 'var(--amber-ghost)' : 'transparent', color: activeSubTab === 'personal' ? 'var(--amber-core)' : 'var(--text-muted)', cursor: 'pointer', textAlign: 'left', fontWeight: 600 }}>
+            <User size={18} /> Personal Info
+          </button>
+          <button onClick={() => setActiveSubTab('security')} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px 20px', borderRadius: '12px', border: 'none', background: activeSubTab === 'security' ? 'var(--amber-ghost)' : 'transparent', color: activeSubTab === 'security' ? 'var(--amber-core)' : 'var(--text-muted)', cursor: 'pointer', textAlign: 'left', fontWeight: 600 }}>
+            <Shield size={18} /> Security & Passwords
+          </button>
         </div>
-      </GlassCard>
+
+        {/* Content Area */}
+        <GlassCard level={2} style={{ padding: '48px' }}>
+          {activeSubTab === 'personal' ? (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '32px', marginBottom: '48px' }}>
+                <div style={{ position: 'relative', width: '100px', height: '100px' }}>
+                  <div style={{ width: '100px', height: '100px', borderRadius: '30px', overflow: 'hidden', background: 'var(--bg-glass)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {user?.profile_photo ? (
+                      <img src={user.profile_photo} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--amber-core)' }}>{user?.full_name?.charAt(0)}</div>
+                    )}
+                  </div>
+                  <label style={{ position: 'absolute', inset: 0, borderRadius: '30px', background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', opacity: uploading ? 1 : 0, transition: 'opacity 0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = 1} onMouseLeave={e => !uploading && (e.currentTarget.style.opacity = 0)}>
+                    <Car size={24} color="white" />
+                    <input type="file" hidden onChange={handlePhotoChange} accept="image/*" disabled={uploading} />
+                  </label>
+                  {uploading && (
+                    <div style={{ position: 'absolute', bottom: '-10px', left: 0, right: 0, height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+                      <motion.div animate={{ width: `${progress}%` }} style={{ height: '100%', background: 'var(--amber-core)' }} />
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', marginBottom: '4px' }}>{user?.full_name}</h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Rider ID: #{user?.userId?.toString().slice(-6)} • Member since {new Date(user?.registration_date).toLocaleDateString()}</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '40px' }}>
+                <Input label="Full Name" value={profileForm.full_name} onChange={e => setProfileForm(p => ({ ...p, full_name: e.target.value }))} />
+                <Input label="Email Address" value={user?.email} disabled style={{ opacity: 0.6 }} />
+                <Input label="Phone Number" value={profileForm.phone} onChange={e => setProfileForm(p => ({ ...p, phone: e.target.value }))} placeholder="+92 XXX XXXXXXX" />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label className="label-caps" style={{ fontSize: '10px' }}>Account Status</label>
+                  <div style={{ padding: '14px', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <Badge status={user?.account_status === 'Active' ? 'Active' : 'Error'}>{user?.account_status}</Badge>
+                  </div>
+                </div>
+              </div>
+
+              <Button onClick={handleUpdateProfile} disabled={loading || !isFormChanged} block>
+                {loading ? <Spinner /> : 'Save Changes'}
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleChangePassword}>
+              <h3 style={{ fontSize: '1.25rem', marginBottom: '32px' }}>Update Security Credentials</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginBottom: '40px' }}>
+                <div style={{ position: 'relative' }}>
+                  <Input 
+                    type={showPass ? 'text' : 'password'} 
+                    label="Current Password" 
+                    value={passForm.current_password} 
+                    onChange={e => setPassForm(p => ({ ...p, current_password: e.target.value }))}
+                    required 
+                  />
+                  <button type="button" onClick={() => setShowPass(!showPass)} style={{ position: 'absolute', right: '16px', top: '40px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                    {showPass ? <X size={16} /> : <Zap size={16} />}
+                  </button>
+                </div>
+
+                <Input 
+                  type="password" 
+                  label="New Password" 
+                  value={passForm.new_password} 
+                  onChange={e => setPassForm(p => ({ ...p, new_password: e.target.value }))}
+                  required 
+                />
+                
+                {passForm.new_password && (
+                  <div style={{ height: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', marginTop: '-12px' }}>
+                    <motion.div 
+                      animate={{ width: passForm.new_password.length > 8 ? '100%' : '50%', background: passForm.new_password.length > 8 ? '#22C55E' : 'var(--amber-core)' }} 
+                      style={{ height: '100%', borderRadius: '2px' }} 
+                    />
+                  </div>
+                )}
+
+                <Input 
+                  type="password" 
+                  label="Confirm New Password" 
+                  value={passForm.confirm_password} 
+                  onChange={e => setPassForm(p => ({ ...p, confirm_password: e.target.value }))}
+                  required 
+                />
+              </div>
+
+              <Button type="submit" disabled={loading} block variant="secondary">
+                {loading ? <Spinner /> : 'Update Password & Re-login'}
+              </Button>
+            </form>
+          )}
+        </GlassCard>
+      </div>
     </motion.div>
   );
 }
+
