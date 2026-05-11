@@ -75,6 +75,14 @@ const getAllPayouts = async (status = null) => {
   return rows;
 };
 
+const getDriverPayouts = async (driverId) => {
+  const [rows] = await pool.execute(
+    "SELECT * FROM payout_request WHERE driver_id = ? ORDER BY requested_at DESC",
+    [driverId]
+  );
+  return rows;
+};
+
 const updatePayoutStatus = async (connection, payoutId, status, adminNote = null) => {
   await connection.execute(
     "UPDATE payout_request SET status = ?, admin_note = ?, processed_at = NOW() WHERE payout_id = ?",
@@ -92,5 +100,6 @@ export {
   createPayoutRequest,
   getPayoutById,
   getAllPayouts,
-  updatePayoutStatus
+  updatePayoutStatus,
+  getDriverPayouts
 };

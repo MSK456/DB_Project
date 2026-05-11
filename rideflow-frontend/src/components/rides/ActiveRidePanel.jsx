@@ -4,7 +4,6 @@ import {
   Car, MapPin, Navigation, Clock, User, Phone, 
   CheckCircle, DollarSign, Timer, Search, X, AlertTriangle
 } from 'lucide-react';
-import { GlassCard, Badge, Button, Spinner } from '../ui';
 import * as rideService from '../../services/rideService';
 import * as ratingService from '../../services/ratingService';
 import useRideStore from '../../store/rideStore';

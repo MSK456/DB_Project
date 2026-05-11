@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Car, MapPin, Navigation, Clock, CreditCard, History, Settings, LogOut, 
-  Search, Shield, Star, Wallet, ArrowRight, Zap, Bell, CheckCircle, X, Receipt
+  Search, Shield, Star, Wallet, ArrowRight, Zap, Bell, CheckCircle, X, Receipt, User
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAuthStore from '../../store/authStore';

@@ -1,4 +1,4 @@
-import api from './api';
+import { api } from './api';
 
 export const submitRating = (data) =>
   api.post('/ratings', data).then(r => r.data);

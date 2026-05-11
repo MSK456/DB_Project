@@ -19,4 +19,4 @@ export const getAdminPayouts = (params) =>
   api.get('/wallet/admin/payouts', { params }).then(r => r.data);
 
 export const updatePayoutStatus = (id, data) =>
-  api.patch(`/wallet/admin/payouts/${id}`, data).then(r => r.data);
+  api.patch(`/wallet/admin/payouts/${id}/process`, data).then(r => r.data);

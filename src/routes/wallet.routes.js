@@ -11,7 +11,8 @@ import {
   fetchTransactions,
   handlePayoutRequest,
   handleProcessPayout,
-  fetchPayoutsAdmin
+  fetchPayoutsAdmin,
+  fetchMyPayouts
 } from "../controllers/wallet.controller.js";
 
 const router = Router();
@@ -26,6 +27,7 @@ router.get("/transactions", authorizeRoles("Rider", "Driver"), fetchTransactions
 router.post("/topup", authorizeRoles("Rider"), validateBody(topupSchema), handleTopup);
 
 // Driver only
+router.get("/payouts", authorizeRoles("Driver"), fetchMyPayouts);
 router.post("/payout", authorizeRoles("Driver"), validateBody(payoutRequestSchema), handlePayoutRequest);
 
 // Admin only

@@ -14,9 +14,9 @@ const getRiderCompletedRides = async (riderId) => {
   try {
     const [rows] = await pool.execute(
       `SELECT r.*, du.full_name AS driver_name, v.license_plate
-       FROM Ride r
-       JOIN User du ON r.driver_id = du.user_id
-       JOIN Vehicle v ON r.vehicle_id = v.vehicle_id
+       FROM ride r
+       JOIN user du ON r.driver_id = du.user_id
+       JOIN vehicle v ON r.vehicle_id = v.vehicle_id
        WHERE r.rider_id = ? AND r.status = 'Completed'
        ORDER BY r.end_time DESC`,
       [riderId]
@@ -35,8 +35,8 @@ const getDriversByCity = async (city) => {
   try {
     const [rows] = await pool.execute(
       `SELECT d.*, u.full_name, u.email, u.phone
-       FROM Driver d
-       JOIN User u ON d.driver_id = u.user_id
+       FROM driver d
+       JOIN user u ON d.driver_id = u.user_id
        WHERE d.current_city = ?
        ORDER BY d.avg_rating DESC`,
       [city]
@@ -54,7 +54,7 @@ const getRevenueReport = async () => {
   try {
     const [rows] = await pool.execute(
       `SELECT pickup_city, SUM(fare) AS total_revenue, COUNT(*) AS ride_count
-       FROM Ride
+       FROM ride
        WHERE status = 'Completed'
        GROUP BY pickup_city`
     );
@@ -71,8 +71,8 @@ const getLowRatedDrivers = async () => {
   try {
     const [rows] = await pool.execute(
       `SELECT d.*, u.full_name, u.email
-       FROM Driver d
-       JOIN User u ON d.driver_id = u.user_id
+       FROM driver d
+       JOIN user u ON d.driver_id = u.user_id
        WHERE d.avg_rating < 3.5`
     );
     return rows;
@@ -88,9 +88,9 @@ const getDriverTripCounts = async () => {
   try {
     const [rows] = await pool.execute(
       `SELECT d.driver_id, u.full_name, COUNT(r.ride_id) AS trip_count
-       FROM Driver d
-       JOIN User u ON d.driver_id = u.user_id
-       LEFT JOIN Ride r ON d.driver_id = r.driver_id AND r.status = 'Completed'
+       FROM driver d
+       JOIN user u ON d.driver_id = u.user_id
+       LEFT JOIN ride r ON d.driver_id = r.driver_id AND r.status = 'Completed'
        GROUP BY d.driver_id, u.full_name`
     );
     return rows;
@@ -106,16 +106,16 @@ const getSystemOverview = async () => {
   try {
     const [rows] = await pool.execute(`
       SELECT
-        (SELECT COUNT(*) FROM User WHERE role = 'Rider') AS total_riders,
-        (SELECT COUNT(*) FROM User WHERE role = 'Driver') AS total_drivers,
-        (SELECT COUNT(*) FROM Driver WHERE availability_status = 'Online') AS online_drivers,
-        (SELECT COUNT(*) FROM Ride WHERE DATE(request_time) = CURDATE()) AS rides_today,
-        (SELECT COALESCE(SUM(amount), 0) FROM Payment 
+        (SELECT COUNT(*) FROM user WHERE role = 'Rider') AS total_riders,
+        (SELECT COUNT(*) FROM user WHERE role = 'Driver') AS total_drivers,
+        (SELECT COUNT(*) FROM driver WHERE availability_status = 'Online') AS online_drivers,
+        (SELECT COUNT(*) FROM ride WHERE DATE(request_time) = CURDATE()) AS rides_today,
+        (SELECT COALESCE(SUM(amount), 0) FROM payment 
          WHERE payment_status = 'Paid' AND DATE(transaction_date) = CURDATE()) AS revenue_today,
-        (SELECT COUNT(*) FROM Vehicle WHERE verification_status = 'Pending') AS pending_vehicles,
-        (SELECT COUNT(*) FROM Driver WHERE avg_rating < 3.5 AND verification_status = 'Verified') AS low_rated_drivers,
-        (SELECT COUNT(*) FROM Payout_Request WHERE status = 'Pending') AS pending_payouts,
-        (SELECT COUNT(*) FROM User WHERE account_status IN ('Suspended', 'Banned')) AS restricted_users
+        (SELECT COUNT(*) FROM vehicle WHERE verification_status = 'Pending') AS pending_vehicles,
+        (SELECT COUNT(*) FROM driver WHERE avg_rating < 3.5 AND verification_status = 'Verified') AS low_rated_drivers,
+        (SELECT COUNT(*) FROM payout_request WHERE status = 'Pending') AS pending_payouts,
+        (SELECT COUNT(*) FROM user WHERE account_status IN ('Suspended', 'Banned')) AS restricted_users
     `);
     return rows[0];
   } catch (e) {
@@ -134,8 +134,8 @@ const getUsersFiltered = async ({ role, status, search, page = 1, limit = 20 }) 
         CASE WHEN u.role = 'Driver' THEN d.avg_rating ELSE NULL END AS driver_rating,
         CASE WHEN u.role = 'Driver' THEN d.verification_status ELSE NULL END AS driver_verification,
         CASE WHEN u.role = 'Driver' THEN d.total_trips ELSE NULL END AS total_trips
-      FROM User u
-      LEFT JOIN Driver d ON d.driver_id = u.user_id
+      FROM user u
+      LEFT JOIN driver d ON d.driver_id = u.user_id
       WHERE 1=1
     `;
     const params = [];
@@ -170,12 +170,12 @@ const updateFareConfig = async (vehicleType, data) => {
   try {
     const { base_rate, per_km_rate, per_min_rate, surge_multiplier, commission_rate } = data;
     await pool.execute(
-      `UPDATE Fare_Config 
+      `UPDATE fare_config 
        SET base_rate = ?, per_km_rate = ?, per_min_rate = ?, surge_multiplier = ?, commission_rate = ?
        WHERE vehicle_type = ?`,
       [base_rate, per_km_rate, per_min_rate, surge_multiplier, commission_rate, vehicleType]
     );
-    const [rows] = await pool.execute(`SELECT * FROM Fare_Config WHERE vehicle_type = ?`, [vehicleType]);
+    const [rows] = await pool.execute(`SELECT * FROM fare_config WHERE vehicle_type = ?`, [vehicleType]);
     return rows[0];
   } catch (e) {
     throw new ApiError(500, "DB Error: updateFareConfig - " + e.message);
@@ -187,7 +187,7 @@ const updateFareConfig = async (vehicleType, data) => {
  */
 const getFareConfigs = async () => {
   try {
-    const [rows] = await pool.execute(`SELECT * FROM Fare_Config`);
+    const [rows] = await pool.execute(`SELECT * FROM fare_config`);
     return rows;
   } catch (e) {
     throw new ApiError(500, "DB Error: getFareConfigs - " + e.message);
@@ -200,7 +200,7 @@ const getFareConfigs = async () => {
 const logAdminAction = async (adminId, action, targetTable, targetId) => {
   try {
     await pool.execute(
-      `INSERT INTO Admin_Log (admin_id, action, target_table, target_id)
+      `INSERT INTO admin_log (admin_id, action, target_table, target_id)
        VALUES (?, ?, ?, ?)`,
       [adminId, action, targetTable, targetId]
     );

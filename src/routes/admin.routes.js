@@ -39,7 +39,6 @@ router.patch("/fare-config/:vehicleType", updateFareConfig);
 router.get("/reports/revenue/by-city", getRevenueByCity);
 router.get("/reports/revenue/by-day", getRevenueByDay);
 router.get("/reports/revenue/by-method", getRevenueByMethod);
-(lines 43-46)
 router.get("/reports/drivers/earnings", getDriverEarningsReport);
 router.get("/reports/drivers/low-rated", getLowRatedDriversReport);
 router.get("/reports/drivers/trip-count", getTripCountReport);

@@ -33,7 +33,7 @@ const updateUserStatus = asyncHandler(async (req, res) => {
   const { status, reason } = req.body;
 
   // 1. Fetch user
-  const [users] = await pool.execute('SELECT * FROM User WHERE user_id = ?', [userId]);
+  const [users] = await pool.execute('SELECT * FROM user WHERE user_id = ?', [userId]);
   if (users.length === 0) throw new ApiError(404, "User not found");
   const user = users[0];
 
@@ -44,11 +44,11 @@ const updateUserStatus = asyncHandler(async (req, res) => {
   if (user.account_status === status) throw new ApiError(400, `User is already ${status}`);
 
   // 4. Update status
-  await pool.execute('UPDATE User SET account_status = ? WHERE user_id = ?', [status, userId]);
+  await pool.execute('UPDATE user SET account_status = ? WHERE user_id = ?', [status, userId]);
 
   // 5. Cascade to Driver if Banned/Suspended
   if (['Banned', 'Suspended'].includes(status) && user.role === 'Driver') {
-    await pool.execute('UPDATE Driver SET availability_status = ? WHERE driver_id = ?', ['Offline', userId]);
+    await pool.execute('UPDATE driver SET availability_status = ? WHERE driver_id = ?', ['Offline', userId]);
   }
 
   // 6. Log action
@@ -126,7 +126,7 @@ const getRevenueByCity = asyncHandler(async (req, res) => {
   const [from, to] = getDateRange(req);
   const [rows] = await pool.execute(
     `SELECT pickup_city as city, SUM(fare) as revenue, COUNT(*) as ride_count 
-     FROM Ride WHERE status = 'Completed' AND request_time BETWEEN ? AND ? 
+     FROM ride WHERE status = 'Completed' AND request_time BETWEEN ? AND ? 
      GROUP BY pickup_city`,
     [from + " 00:00:00", to + " 23:59:59"]
   );
@@ -140,7 +140,7 @@ const getRevenueByMethod = asyncHandler(async (req, res) => {
   const [from, to] = getDateRange(req);
   const [rows] = await pool.execute(
     `SELECT payment_method, SUM(amount) as revenue, COUNT(*) as count 
-     FROM Payment WHERE payment_status = 'Paid' AND transaction_date BETWEEN ? AND ? 
+     FROM payment WHERE payment_status = 'Paid' AND transaction_date BETWEEN ? AND ? 
      GROUP BY payment_method`,
     [from + " 00:00:00", to + " 23:59:59"]
   );
@@ -154,9 +154,9 @@ const getDriverEarningsReport = asyncHandler(async (req, res) => {
   const [from, to] = getDateRange(req);
   const [rows] = await pool.execute(
     `SELECT u.full_name, SUM(p.amount * 0.8) as earnings 
-     FROM Payment p 
-     JOIN Ride r ON p.ride_id = r.ride_id 
-     JOIN User u ON r.driver_id = u.user_id 
+     FROM payment p 
+     JOIN ride r ON p.ride_id = r.ride_id 
+     JOIN user u ON r.driver_id = u.user_id 
      WHERE p.payment_status = 'Paid' AND p.transaction_date BETWEEN ? AND ? 
      GROUP BY u.user_id ORDER BY earnings DESC`,
     [from + " 00:00:00", to + " 23:59:59"]
@@ -170,7 +170,7 @@ const getDriverEarningsReport = asyncHandler(async (req, res) => {
 const getLowRatedDriversReport = asyncHandler(async (req, res) => {
   const [rows] = await pool.execute(
     `SELECT u.full_name, d.avg_rating, d.total_rides 
-     FROM Driver d JOIN User u ON d.driver_id = u.user_id 
+     FROM driver d JOIN user u ON d.driver_id = u.user_id 
      WHERE d.avg_rating < 3.0 AND d.total_rides > 5 
      ORDER BY d.avg_rating ASC`
   );
@@ -184,7 +184,7 @@ const getTripCountReport = asyncHandler(async (req, res) => {
   const [from, to] = getDateRange(req);
   const [rows] = await pool.execute(
     `SELECT u.full_name, COUNT(r.ride_id) as trip_count 
-     FROM Ride r JOIN User u ON r.driver_id = u.user_id 
+     FROM ride r JOIN user u ON r.driver_id = u.user_id 
      WHERE r.status = 'Completed' AND r.request_time BETWEEN ? AND ? 
      GROUP BY u.user_id ORDER BY trip_count DESC`,
     [from + " 00:00:00", to + " 23:59:59"]
@@ -199,7 +199,7 @@ const getPromoUsageReport = asyncHandler(async (req, res) => {
   const [from, to] = getDateRange(req);
   const [rows] = await pool.execute(
     `SELECT promo_code, COUNT(*) as usage_count, SUM(discount_amount) as total_savings 
-     FROM Payment WHERE promo_code IS NOT NULL AND transaction_date BETWEEN ? AND ? 
+     FROM payment WHERE promo_code IS NOT NULL AND transaction_date BETWEEN ? AND ? 
      GROUP BY promo_code ORDER BY usage_count DESC`,
     [from + " 00:00:00", to + " 23:59:59"]
   );
@@ -217,7 +217,7 @@ const getRevenueByDay = asyncHandler(async (req, res) => {
       COUNT(*) AS rides_paid,
       SUM(p.amount) AS revenue,
       SUM(p.discount_amount) AS discounts
-    FROM Payment p
+    FROM payment p
     WHERE p.payment_status = 'Paid'
       AND p.transaction_date BETWEEN ? AND ?
     GROUP BY DATE(p.transaction_date)
@@ -253,12 +253,12 @@ const getFullTripReport = asyncHandler(async (req, res) => {
       p.amount AS amount_paid,
       p.payment_method,
       p.promo_code
-    FROM Ride r
-    INNER JOIN User ru ON r.rider_id = ru.user_id
-    INNER JOIN Driver d ON r.driver_id = d.driver_id
-    INNER JOIN User du ON d.driver_id = du.user_id
-    INNER JOIN Vehicle v ON r.vehicle_id = v.vehicle_id
-    LEFT JOIN Payment p ON p.ride_id = r.ride_id
+    FROM ride r
+    INNER JOIN user ru ON r.rider_id = ru.user_id
+    INNER JOIN driver d ON r.driver_id = d.driver_id
+    INNER JOIN user du ON d.driver_id = du.user_id
+    INNER JOIN vehicle v ON r.vehicle_id = v.vehicle_id
+    LEFT JOIN payment p ON p.ride_id = r.ride_id
     WHERE r.request_time BETWEEN ? AND ?
     ORDER BY r.request_time DESC
     LIMIT 500`,

@@ -2,7 +2,6 @@ import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import * as ratingModel from '../models/rating.model.js';
-import * as rideService from '../services/rideService.js'; // Assuming it exists or I'll use pool directly
 import { pool } from '../db/index.js';
 
 /**

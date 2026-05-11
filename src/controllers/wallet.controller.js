@@ -12,10 +12,10 @@ import {
   updateDriverBalance,
   recordTransaction,
   getWalletHistory,
-  createPayoutRequest,
   getPayoutById,
   getAllPayouts,
-  updatePayoutStatus
+  updatePayoutStatus,
+  getDriverPayouts
 } from "../models/wallet.model.js";
 
 /**
@@ -184,11 +184,20 @@ const fetchPayoutsAdmin = asyncHandler(async (req, res) => {
   return res.status(200).json(new ApiResponse(200, payouts, "Payouts fetched"));
 });
 
+/**
+ * GET /api/v1/wallet/payouts
+ */
+const fetchMyPayouts = asyncHandler(async (req, res) => {
+  const payouts = await getDriverPayouts(req.user.userId);
+  return res.status(200).json(new ApiResponse(200, payouts, "My payouts fetched"));
+});
+
 export {
   getBalance,
   handleTopup,
   fetchTransactions,
   handlePayoutRequest,
   handleProcessPayout,
-  fetchPayoutsAdmin
+  fetchPayoutsAdmin,
+  fetchMyPayouts
 };
