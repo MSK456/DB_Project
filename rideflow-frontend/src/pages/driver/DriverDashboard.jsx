@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Car, MapPin, Navigation, Clock, CreditCard, History, Settings, LogOut, 
   Search, Shield, Star, Wallet, ArrowRight, Zap, Bell, CheckCircle,
-  Power, TrendingUp, User, DollarSign, Calendar, X, ExternalLink
+  Power, TrendingUp, User, DollarSign, Calendar, X, ExternalLink, Banknote
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAuthStore from '../../store/authStore';
@@ -13,7 +13,7 @@ import * as authService from '../../services/authService';
 import * as driverService from '../../services/driverService';
 import * as rideService from '../../services/rideService';
 import * as vehicleService from '../../services/vehicleService';
-import { GlassCard, Badge, Spinner, Button, Input } from '../../components/ui';
+import { GlassCard, Badge, Spinner, Button, Input, EmptyState } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
 import toast from 'react-hot-toast';
 import RideMap from '../../components/maps/RideMap';
@@ -279,10 +279,11 @@ function EarningsTab() {
               </div>
             ))}
             {history.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
-                <div style={{ marginBottom: '16px', opacity: 0.2 }}><DollarSign size={48} /></div>
-                <p>No earnings history found yet.</p>
-              </div>
+              <EmptyState 
+                icon={Car} 
+                title="No trips completed yet" 
+                subtitle="Go online to start receiving rides and building your earnings history." 
+              />
             )}
           </div>
         </GlassCard>
@@ -298,21 +299,9 @@ function EarningsTab() {
             </div>
           </GlassCard>
 
-          <GlassCard level={2} style={{ padding: '32px' }}>
-            <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Earnings Breakdown</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Net to You</span>
-                <span style={{ fontWeight: 600 }}>80%</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Service Fee</span>
-                <span style={{ fontWeight: 600 }}>20%</span>
-              </div>
-              <div style={{ marginTop: '10px', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ width: '80%', height: '100%', background: 'var(--amber-core)' }} />
-              </div>
-            </div>
+          <GlassCard level={2} style={{ padding: '32px', flex: 1 }}>
+            <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Payout Requests</h4>
+            <PayoutsList />
           </GlassCard>
         </div>
       </div>
@@ -330,6 +319,43 @@ function EarningsTab() {
         )}
       </AnimatePresence>
     </motion.div>
+  );
+}
+
+function PayoutsList() {
+  const [payouts, setPayouts] = useState([]);
+  const { loading, execute } = useApi();
+
+  useEffect(() => {
+    import('../../services/walletService').then(ws => {
+      execute(() => ws.getPayoutHistory(), { showSuccessToast: false })
+        .then(res => res && setPayouts(res.data || []));
+    });
+  }, []);
+
+  if (loading && payouts.length === 0) return <div style={{ textAlign: 'center', padding: '20px' }}><Spinner /></div>;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {payouts.map(p => (
+        <div key={p.payout_id} className="glass-1" style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: 600 }}>PKR {parseFloat(p.amount).toFixed(2)}</div>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{new Date(p.request_date).toLocaleDateString()}</div>
+          </div>
+          <Badge status={p.status === 'Completed' ? 'Active' : p.status === 'Pending' ? 'Warning' : 'Error'}>
+            {p.status}
+          </Badge>
+        </div>
+      ))}
+      {payouts.length === 0 && (
+        <EmptyState 
+          icon={Banknote} 
+          title="No payout requests yet" 
+          subtitle="Your earnings will accumulate in your wallet. Request your first payout when you're ready!" 
+        />
+      )}
+    </div>
   );
 }
 

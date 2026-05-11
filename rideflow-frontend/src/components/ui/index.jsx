@@ -78,4 +78,15 @@ export function Spinner({ size = 20, color = 'currentColor' }) {
   );
 }
 
+export function EmptyState({ icon: Icon, title, subtitle, action }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 0', textAlign: 'center' }}>
+      {Icon && <Icon size={48} color="var(--amber-core)" style={{ marginBottom: '16px' }} />}
+      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{title}</h3>
+      {subtitle && <p style={{ fontSize: '14px', color: 'var(--text-muted)', maxWidth: '280px', margin: '0 auto 20px' }}>{subtitle}</p>}
+      {action}
+    </div>
+  );
+}
+
 export { default as RatingStars } from './RatingStars';

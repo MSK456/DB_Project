@@ -183,6 +183,20 @@ const handleProcessRidePayment = asyncHandler(async (req, res) => {
   await connection.beginTransaction();
 
   try {
+    // Step 0: Idempotency check
+    const [existingPayments] = await connection.execute(
+      "SELECT payment_id FROM payment WHERE ride_id = ? AND payment_status = 'Paid'",
+      [rideId]
+    );
+    if (existingPayments.length > 0) {
+      await connection.rollback();
+      return res.status(200).json(new ApiResponse(200, { 
+        payment_id: existingPayments[0].payment_id, 
+        ride_id: rideId, 
+        payment_status: 'Paid' 
+      }, "Payment already processed."));
+    }
+
     // Step 1: Fetch ride with lock (join vehicle for vehicle_type)
     const [rideRows] = await connection.execute(
       `SELECT r.*, v.vehicle_type 

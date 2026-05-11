@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Car, MapPin, Navigation, Clock, CreditCard, History, Settings, LogOut, 
-  Search, Shield, Star, Wallet, ArrowRight, Zap, Bell, CheckCircle, X
+  Search, Shield, Star, Wallet, ArrowRight, Zap, Bell, CheckCircle, X, Receipt
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAuthStore from '../../store/authStore';
@@ -11,7 +11,7 @@ import useRideStore from '../../store/rideStore';
 import * as authService from '../../services/authService';
 import * as rideService from '../../services/rideService';
 import * as walletService from '../../services/walletService';
-import { GlassCard, Badge, Spinner, Button, Input } from '../../components/ui';
+import { GlassCard, Badge, Spinner, Button, Input, EmptyState } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
 import toast from 'react-hot-toast';
 import AddressAutocomplete from '../../components/maps/AddressAutocomplete';
@@ -315,7 +315,13 @@ function RideHistoryTab({ history, loading, onRefresh }) {
             {history.map(ride => (
               <RideHistoryItem key={ride.ride_id} ride={ride} onRate={() => setSelectedRide(ride)} />
             ))}
-            {history.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No rides yet.</p>}
+            {history.length === 0 && (
+              <EmptyState 
+                icon={Car} 
+                title="No rides yet" 
+                subtitle="Your journey history is waiting to be written. Book your first ride today!" 
+              />
+            )}
           </div>
         )}
       </GlassCard>
@@ -492,20 +498,63 @@ function WalletTab({ balance, onRefresh }) {
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '32px' }}>
         <GlassCard level={2} style={{ padding: '40px' }}>
           <h3 style={{ fontSize: '1.25rem', marginBottom: '24px' }}>Balance Details</h3>
           <div style={{ background: 'var(--amber-ghost)', padding: '32px', borderRadius: '20px', textAlign: 'center', marginBottom: '32px' }}>
             <p className="label-caps" style={{ color: 'var(--amber-core)', marginBottom: '8px' }}>Available Credit</p>
-            <h2 style={{ fontSize: '3rem', color: 'var(--amber-core)' }}>${Number(balance || 0).toFixed(2)}</h2>
+            <h2 style={{ fontSize: '3rem', color: 'var(--amber-core)' }}>PKR {Number(balance || 0).toFixed(2)}</h2>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
             <Input placeholder="Amount" type="number" value={amount} onChange={e => setAmount(e.target.value)} style={{ flex: 1 }} />
             <button className="btn-primary" onClick={handleTopUp} disabled={loading} style={{ padding: '0 32px' }}>{loading ? <Spinner /> : 'Top Up'}</button>
           </div>
         </GlassCard>
+
+        <GlassCard level={2} style={{ padding: '40px' }}>
+          <h3 style={{ fontSize: '1.25rem', marginBottom: '32px' }}>Transaction History</h3>
+          <TransactionsList />
+        </GlassCard>
       </div>
     </motion.div>
+  );
+}
+
+function TransactionsList() {
+  const [txns, setTxns] = useState([]);
+  const { loading, execute } = useApi();
+
+  useEffect(() => {
+    execute(() => walletService.getTransactions(), { showSuccessToast: false })
+      .then(res => res && setTxns(res.data || []));
+  }, []);
+
+  if (loading && txns.length === 0) return <div style={{ textAlign: 'center', padding: '20px' }}><Spinner /></div>;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {txns.map(t => (
+        <div key={t.transaction_id} className="glass-1" style={{ padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: '14px', fontWeight: 600 }}>{t.transaction_type}</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{new Date(t.transaction_date).toLocaleString()}</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontWeight: 700, color: t.transaction_type === 'Credit' ? '#22C55E' : '#EF4444' }}>
+              {t.transaction_type === 'Credit' ? '+' : '-'}PKR {parseFloat(t.amount).toFixed(2)}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.payment_method || 'Wallet'}</div>
+          </div>
+        </div>
+      ))}
+      {txns.length === 0 && (
+        <EmptyState 
+          icon={Receipt} 
+          title="No transactions yet" 
+          subtitle="Your financial activity will appear here once you top up or take rides." 
+        />
+      )}
+    </div>
   );
 }
 

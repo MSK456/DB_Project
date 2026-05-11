@@ -55,6 +55,18 @@ const handleTopup = asyncHandler(async (req, res) => {
   await connection.beginTransaction();
 
   try {
+    // 0. Daily Limit Check
+    const [dailySum] = await connection.execute(
+      `SELECT SUM(amount) as total FROM wallet_transaction 
+       WHERE wallet_owner_id = ? AND txn_type = 'TopUp' 
+       AND DATE(created_at) = CURDATE()`,
+      [riderId]
+    );
+    const currentTotal = parseFloat(dailySum[0].total || 0);
+    if (currentTotal + parseFloat(amount) > 100000) {
+      throw new ApiError(400, "Daily top-up limit of PKR 100,000 reached");
+    }
+
     // Check if wallet exists, if not, create it
     const [existing] = await connection.execute("SELECT rider_id FROM rider_wallet WHERE rider_id = ? FOR UPDATE", [riderId]);
     

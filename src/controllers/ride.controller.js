@@ -136,11 +136,27 @@ const formatRideResponse = (ride) => {
 };
 
 /**
+ * Helper to ensure user account is active
+ */
+const checkActiveStatus = async (userId) => {
+  const [users] = await pool.execute('SELECT account_status FROM User WHERE user_id = ?', [userId]);
+  if (users.length === 0) throw new ApiError(404, "User not found");
+  if (users[0].account_status !== 'Active') {
+    throw new ApiError(403, `Your account is ${users[0].account_status}. Please contact support.`);
+  }
+};
+
+/**
  *  POST /api/v1/rides/request
  */
 const requestNewRide = asyncHandler(async (req, res) => {
   const { pickup_location, dropoff_location, vehicle_type } = req.body;
   const riderId = req.user.userId;
+
+  // 0. Only Riders can request rides
+  if (req.user.role !== 'Rider') {
+    throw new ApiError(403, "Only riders can request rides");
+  }
 
   // 1. Check if rider already has an active ride
   const active = await hasActiveRide(riderId);
@@ -273,6 +289,8 @@ const handleDriverArrived = asyncHandler(async (req, res) => {
   const { rideId } = req.params;
   const driverId = req.user.userId;
 
+  await checkActiveStatus(driverId);
+
   const ride = await findRideById(rideId);
   if (!ride || ride.driver_id !== driverId) {
     throw new ApiError(404, "Ride not found or not assigned to you");
@@ -304,6 +322,8 @@ const handleStartRide = asyncHandler(async (req, res) => {
   const { rideId } = req.params;
   const driverId = req.user.userId;
 
+  await checkActiveStatus(driverId);
+
   const ride = await findRideById(rideId);
   if (!ride || ride.driver_id !== driverId) {
     throw new ApiError(404, "Ride not found or not assigned to you");
@@ -328,6 +348,8 @@ const handleStartRide = asyncHandler(async (req, res) => {
 const handleDestinationReached = asyncHandler(async (req, res) => {
   const { rideId } = req.params;
   const driverId = req.user.userId;
+
+  await checkActiveStatus(driverId);
 
   const ride = await findRideById(rideId);
   if (!ride || ride.driver_id !== driverId) {
@@ -387,6 +409,8 @@ const handleDestinationReached = asyncHandler(async (req, res) => {
 const handleCompleteRide = asyncHandler(async (req, res) => {
   const { rideId } = req.params;
   const driverId = req.user.userId;
+
+  await checkActiveStatus(driverId);
 
   const ride = await findRideById(rideId);
   if (!ride || ride.driver_id !== driverId) {

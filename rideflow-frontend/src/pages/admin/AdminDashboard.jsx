@@ -18,7 +18,7 @@ import useAuthStore from '../../store/authStore';
 import * as authService from '../../services/authService';
 import * as adminService from '../../services/adminService';
 import * as vehicleService from '../../services/vehicleService';
-import { GlassCard, Badge, Spinner, Input, Button, RatingStars } from '../../components/ui';
+import { GlassCard, Badge, Spinner, Input, Button, RatingStars, EmptyState } from '../../components/ui';
 import { useApi } from '../../hooks/useApi';
 import { exportToCSV } from '../../utils/exportCSV';
 import toast from 'react-hot-toast';
@@ -81,6 +81,7 @@ export default function AdminDashboard() {
             { id: 'verification', label: 'Verifications', icon: Shield },
             { id: 'users', label: 'Users', icon: Users },
             { id: 'fares', label: 'Fare Settings', icon: DollarSign },
+            { id: 'payouts', label: 'Payout Requests', icon: CreditCard },
             { id: 'reports', label: 'Intelligence Reports', icon: FileText },
           ].map(item => (
             <button key={item.id} onClick={() => setActiveTab(item.id)} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 20px', borderRadius: '12px', border: 'none', cursor: 'pointer', textAlign: 'left', background: activeTab === item.id ? 'var(--amber-ghost)' : 'transparent', color: activeTab === item.id ? 'var(--amber-core)' : 'var(--text-muted)', transition: 'all 0.2s', fontWeight: activeTab === item.id ? 600 : 500 }}>
@@ -111,6 +112,7 @@ export default function AdminDashboard() {
           {activeTab === 'verification' && <VerificationTab key="verification" queue={pendingVehicles} onAction={fetchPendingVehicles} />}
           {activeTab === 'users' && <UsersTab key="users" users={usersList} onAction={fetchUsers} />}
           {activeTab === 'fares' && <FareTab key="fares" configs={fareConfigs} onAction={fetchFares} />}
+          {activeTab === 'payouts' && <AdminPayoutsTab key="payouts" />}
           {activeTab === 'reports' && <ReportsTab key="reports" />}
         </AnimatePresence>
       </main>
@@ -171,6 +173,14 @@ function ReportsTab() {
       </div>
 
       {loading && <div style={{ textAlign: 'center', padding: '60px' }}><Spinner size={40} /></div>}
+
+      {!data && !loading && (
+        <EmptyState 
+          icon={TrendingUp} 
+          title="Run the report to see results" 
+          subtitle="Select a report type above to visualize system performance." 
+        />
+      )}
 
       {data && !loading && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
@@ -578,9 +588,72 @@ function VerificationTab({ queue, onAction }) {
               </div>
             </div>
           ))}
-          {queue.length === 0 && <p style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>No pending verifications.</p>}
+          {queue.length === 0 && (
+            <EmptyState 
+              icon={CheckCircle} 
+              title="All vehicles are verified!" 
+              subtitle="Great job! The queue is completely empty." 
+            />
+          )}
         </div>
       </GlassCard>
     </motion.div>
   );
 }
+
+function AdminPayoutsTab() {
+  const [payouts, setPayouts] = useState([]);
+  const { loading, execute } = useApi();
+
+  const fetchPayouts = useCallback(async () => {
+    const res = await walletService.getAdminPayouts().catch(() => null);
+    if (res) setPayouts(res.data);
+  }, []);
+
+  useEffect(() => {
+    fetchPayouts();
+  }, [fetchPayouts]);
+
+  const handleApprove = async (id) => {
+    await execute(() => walletService.updatePayoutStatus(id, { status: 'Completed' }), {
+      successMessage: "Payout completed",
+      onSuccess: fetchPayouts
+    });
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+      <GlassCard level={2} style={{ padding: '40px' }}>
+        <h3 style={{ fontSize: '1.5rem', marginBottom: '32px' }}>Pending Payout Requests</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {payouts.map(p => (
+            <div key={p.payout_id} className="glass-1" style={{ padding: '24px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--amber-ghost)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <DollarSign size={24} color="var(--amber-core)" />
+                </div>
+                <div>
+                  <div style={{ fontSize: '16px', fontWeight: 600 }}>PKR {parseFloat(p.amount).toLocaleString()}</div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Captain ID: #{p.user_id} • Requested: {new Date(p.request_date).toLocaleDateString()}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '16px' }}>
+                <button className="btn-secondary" style={{ color: '#EF4444' }} onClick={() => execute(() => walletService.updatePayoutStatus(p.payout_id, { status: 'Rejected' }), { onSuccess: fetchPayouts })}>Reject</button>
+                <button className="btn-primary" onClick={() => handleApprove(p.payout_id)}>Complete Transfer</button>
+              </div>
+            </div>
+          ))}
+          {payouts.length === 0 && (
+            <EmptyState 
+              icon={CreditCard} 
+              title="No pending payouts" 
+              subtitle="All captains have been paid! The treasury is up to date." 
+            />
+          )}
+        </div>
+      </GlassCard>
+    </motion.div>
+  );
+}
+
+import * as walletService from '../../services/walletService';
