@@ -17,192 +17,93 @@ import {
   getRevenueReport,
   getLowRatedDrivers,
   getDriverTripCounts,
-  logAdminAction
+  logAdminAction,
+  getSystemOverview as getStatsOverview,
+  getUsersFiltered,
+  updateFareConfig as updateFareModel,
+  getFareConfigs as getFareModels
 } from "../models/admin.model.js";
 import { pool } from "../db/index.js";
 
 /**
- * PATCH /api/v1/admin/vehicles/:vehicleId/verify
+ * PATCH /api/v1/admin/users/:userId/status
  */
-const verifyVehicle = asyncHandler(async (req, res) => {
-  const { vehicleId } = req.params;
-  const { status } = req.body;
+const updateUserStatus = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const { status, reason } = req.body;
 
-  await updateVehicleVerification(vehicleId, status);
-  await logAdminAction(req.user.userId, `Vehicle ${status}: ${vehicleId}`, 'Vehicle', vehicleId);
+  // 1. Fetch user
+  const [users] = await pool.execute('SELECT * FROM User WHERE user_id = ?', [userId]);
+  if (users.length === 0) throw new ApiError(404, "User not found");
+  const user = users[0];
 
-  return res.status(200).json(new ApiResponse(200, { vehicleId, status }, `Vehicle ${status} successfully`));
-});
+  // 2. Cannot modify other admins
+  if (user.role === 'Admin') throw new ApiError(403, "Cannot modify admin accounts");
 
-/**
- * GET /api/v1/admin/vehicles/pending
- */
-const fetchPendingVehicles = asyncHandler(async (req, res) => {
-  const vehicles = await getPendingVehicles();
-  return res.status(200).json(new ApiResponse(200, vehicles, "Pending vehicles fetched"));
-});
+  // 3. Status check
+  if (user.account_status === status) throw new ApiError(400, `User is already ${status}`);
 
-/**
- * GET /api/v1/admin/rides
- */
-const fetchAllRides = asyncHandler(async (req, res) => {
-  const rides = await getAllRidesAdmin(req.query);
-  return res.status(200).json(new ApiResponse(200, rides, "All rides fetched"));
-});
+  // 4. Update status
+  await pool.execute('UPDATE User SET account_status = ? WHERE user_id = ?', [status, userId]);
 
-// --- Report Endpoints ---
-
-const reportRevenueByCity = asyncHandler(async (req, res) => {
-  const { from, to } = req.query;
-  let sql = `
-    SELECT 
-        r.pickup_city AS city,
-        COUNT(p.payment_id) AS total_rides_paid,
-        SUM(p.amount) AS total_revenue,
-        SUM(p.discount_amount) AS total_discounts_given,
-        SUM(p.amount + p.discount_amount) AS gross_fare_total,
-        AVG(p.amount) AS avg_fare_per_ride
-    FROM Payment p
-    JOIN Ride r ON p.ride_id = r.ride_id
-    WHERE p.payment_status = 'Paid'
-  `;
-  const params = [];
-  if (from && to) {
-    sql += " AND r.request_time BETWEEN ? AND ?";
-    params.push(from, to);
+  // 5. Cascade to Driver if Banned/Suspended
+  if (['Banned', 'Suspended'].includes(status) && user.role === 'Driver') {
+    await pool.execute('UPDATE Driver SET availability_status = ? WHERE driver_id = ?', ['Offline', userId]);
   }
-  sql += " GROUP BY r.pickup_city ORDER BY total_revenue DESC";
-  
-  const [data] = await pool.execute(sql, params);
-  return res.status(200).json(new ApiResponse(200, data, "Report fetched"));
+
+  // 6. Log action
+  await logAdminAction(
+    req.user.userId, 
+    `Set user #${userId} status to ${status}. Reason: ${reason || 'Not provided'}`,
+    'User',
+    userId
+  );
+
+  return res.status(200).json(new ApiResponse(200, { userId, new_status: status }, "User status updated"));
 });
 
-const reportRevenueByMethod = asyncHandler(async (req, res) => {
-  const [data] = await pool.execute(`
-    SELECT 
-        payment_method,
-        COUNT(*) AS transaction_count,
-        SUM(amount) AS total_amount,
-        AVG(amount) AS avg_amount,
-        SUM(discount_amount) AS total_discounts
-    FROM Payment
-    WHERE payment_status = 'Paid'
-    GROUP BY payment_method
-    ORDER BY total_amount DESC
-  `);
-  return res.status(200).json(new ApiResponse(200, data, "Report fetched"));
+/**
+ * GET /api/v1/admin/overview
+ */
+const getSystemOverview = asyncHandler(async (req, res) => {
+  const stats = await getStatsOverview();
+  return res.status(200).json(new ApiResponse(200, stats, "System overview fetched"));
 });
 
-const reportDriverEarnings = asyncHandler(async (req, res) => {
-  const [data] = await pool.execute(`
-    SELECT 
-        u.full_name AS driver_name,
-        u.email,
-        d.total_trips,
-        d.avg_rating,
-        SUM(p.amount + p.discount_amount) AS total_fare_generated,
-        SUM(wt.amount) AS total_earned,
-        (SUM(p.amount + p.discount_amount) - SUM(wt.amount)) AS total_commission_paid,
-        w.balance AS current_wallet_balance
-    FROM Driver d
-    JOIN User u ON d.driver_id = u.user_id
-    JOIN Ride r ON r.driver_id = d.driver_id
-    JOIN Payment p ON p.ride_id = r.ride_id AND p.payment_status = 'Paid'
-    JOIN Wallet_Transaction wt ON wt.wallet_owner_id = d.driver_id 
-        AND wt.owner_type = 'Driver' 
-        AND wt.txn_type = 'Credit'
-        AND wt.reference_id = r.ride_id
-    JOIN Wallet w ON w.driver_id = d.driver_id
-    GROUP BY d.driver_id, u.full_name, u.email, d.total_trips, d.avg_rating, w.balance
-    ORDER BY total_earned DESC
-  `);
-  return res.status(200).json(new ApiResponse(200, data, "Report fetched"));
+/**
+ * PATCH /api/v1/admin/fare-config/:vehicleType
+ */
+const updateFareConfig = asyncHandler(async (req, res) => {
+  const { vehicleType } = req.params;
+  const { base_rate, per_km_rate, per_min_rate, surge_multiplier, commission_rate } = req.body;
+
+  if (base_rate <= 0 || per_km_rate <= 0 || per_min_rate <= 0 || surge_multiplier <= 0) {
+    throw new ApiError(400, "Rates must be greater than zero");
+  }
+  if (commission_rate < 0 || commission_rate > 1) {
+    throw new ApiError(400, "Commission rate must be between 0 and 1");
+  }
+
+  const updated = await updateFareModel(vehicleType, req.body);
+  await logAdminAction(req.user.userId, `Updated fare config for ${vehicleType}`, 'Fare_Config', vehicleType);
+
+  return res.status(200).json(new ApiResponse(200, updated, "Fare config updated"));
 });
 
-const reportLowRatedDriversFull = asyncHandler(async (req, res) => {
-  const [data] = await pool.execute(`
-    SELECT 
-        u.full_name,
-        u.email,
-        u.phone,
-        d.driver_id,
-        d.total_trips,
-        d.verification_status,
-        AVG(rat.score) AS calculated_avg_rating,
-        COUNT(rat.rating_id) AS total_ratings_received
-    FROM Driver d
-    JOIN User u ON d.driver_id = u.user_id
-    LEFT JOIN Rating rat ON rat.rated_user_id = d.driver_id AND rat.rated_by = 'Rider'
-    GROUP BY d.driver_id, u.full_name, u.email, u.phone, d.total_trips, d.verification_status
-    HAVING AVG(rat.score) < 3.5 OR AVG(rat.score) IS NULL
-    ORDER BY calculated_avg_rating ASC
-  `);
-  return res.status(200).json(new ApiResponse(200, data, "Report fetched"));
+/**
+ * GET /api/v1/admin/fare-config
+ */
+const getFareConfigs = asyncHandler(async (req, res) => {
+  const configs = await getFareModels();
+  return res.status(200).json(new ApiResponse(200, configs, "Fare configs fetched"));
 });
 
-const reportTripCountsFull = asyncHandler(async (req, res) => {
-  const [data] = await pool.execute(`
-    SELECT 
-        u.full_name AS driver_name,
-        d.driver_id,
-        d.current_city,
-        d.avg_rating,
-        COUNT(r.ride_id) AS completed_trips,
-        SUM(r.fare) AS total_fare_generated,
-        d.total_trips AS stored_trip_count
-    FROM Driver d
-    JOIN User u ON d.driver_id = u.user_id
-    LEFT JOIN Ride r ON r.driver_id = d.driver_id AND r.status = 'Completed'
-    GROUP BY d.driver_id, u.full_name, d.current_city, d.avg_rating, d.total_trips
-    ORDER BY completed_trips DESC
-  `);
-  return res.status(200).json(new ApiResponse(200, data, "Report fetched"));
-});
-
-const reportAllRiders = asyncHandler(async (req, res) => {
-  const [data] = await pool.execute(`
-    SELECT 
-        u.full_name AS rider_name,
-        u.email,
-        u.phone,
-        u.account_status,
-        u.registration_date,
-        COUNT(r.ride_id) AS total_rides,
-        COUNT(CASE WHEN r.status = 'Completed' THEN 1 END) AS completed_rides,
-        COUNT(CASE WHEN r.status = 'Cancelled' THEN 1 END) AS cancelled_rides,
-        COALESCE(SUM(p.amount), 0) AS total_spent,
-        rw.balance AS wallet_balance
-    FROM User u
-    LEFT JOIN Ride r ON r.rider_id = u.user_id
-    LEFT JOIN Payment p ON p.ride_id = r.ride_id AND p.payment_status = 'Paid'
-    LEFT JOIN Rider_Wallet rw ON rw.rider_id = u.user_id
-    WHERE u.role = 'Rider'
-    GROUP BY u.user_id, u.full_name, u.email, u.phone, u.account_status, u.registration_date, rw.balance
-    ORDER BY total_rides DESC
-  `);
-  return res.status(200).json(new ApiResponse(200, data, "Report fetched"));
-});
-
-const reportPromoUsage = asyncHandler(async (req, res) => {
-  const [data] = await pool.execute(`
-    SELECT 
-        pc.code,
-        pc.discount_type,
-        pc.discount_value,
-        pc.min_ride_amount,
-        pc.expiry_date,
-        pc.is_active,
-        pc.usage_count,
-        pc.max_usage,
-        COALESCE(SUM(p.discount_amount), 0) AS total_discount_given,
-        COUNT(p.payment_id) AS times_used_in_payments
-    FROM Promo_Code pc
-    LEFT JOIN Payment p ON p.promo_code = pc.code AND p.payment_status = 'Paid'
-    GROUP BY pc.code, pc.discount_type, pc.discount_value, pc.min_ride_amount, 
-             pc.expiry_date, pc.is_active, pc.usage_count, pc.max_usage
-    ORDER BY pc.usage_count DESC
-  `);
-  return res.status(200).json(new ApiResponse(200, data, "Report fetched"));
+/**
+ * GET /api/v1/admin/users
+ */
+const getUsers = asyncHandler(async (req, res) => {
+  const users = await getUsersFiltered(req.query);
+  return res.status(200).json(new ApiResponse(200, users, "Users fetched"));
 });
 
 export {
@@ -215,5 +116,11 @@ export {
   reportLowRatedDriversFull,
   reportTripCountsFull,
   reportAllRiders,
-  reportPromoUsage
+  reportPromoUsage,
+  updateUserStatus,
+  getSystemOverview,
+  updateFareConfig,
+  getFareConfigs,
+  getUsers
 };
+

@@ -27,6 +27,15 @@ router.get("/vehicles/pending", fetchPendingVehicles);
 router.patch("/vehicles/:vehicleId/verify", validateBody(verifyVehicleSchema), verifyVehicle);
 router.get("/rides", fetchAllRides);
 
+// Management
+router.get("/overview", getSystemOverview);
+router.get("/users", getUsers);
+router.patch("/users/:userId/status", updateUserStatus);
+
+// Fare Config
+router.get("/fare-config", getFareConfigs);
+router.patch("/fare-config/:vehicleType", updateFareConfig);
+
 // Reports
 router.get("/reports/revenue/by-city", reportRevenueByCity);
 router.get("/reports/revenue/by-method", reportRevenueByMethod);
@@ -35,5 +44,6 @@ router.get("/reports/drivers/low-rated", reportLowRatedDriversFull);
 router.get("/reports/drivers/trip-count", reportTripCountsFull);
 router.get("/reports/riders/all", reportAllRiders);
 router.get("/reports/promos/usage", reportPromoUsage);
+
 
 export default router;
