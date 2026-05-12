@@ -18,6 +18,7 @@ import { useApi } from '../../hooks/useApi';
 import toast from 'react-hot-toast';
 import RideMap from '../../components/maps/RideMap';
 import ActiveRidePanel from '../../components/rides/ActiveRidePanel';
+import * as walletService from '../../services/walletService';
 
 export default function DriverDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -327,10 +328,8 @@ function PayoutsList() {
   const { loading, execute } = useApi();
 
   useEffect(() => {
-    import('../../services/walletService').then(ws => {
-      execute(() => ws.getPayoutHistory(), { showSuccessToast: false })
-        .then(res => res && setPayouts(res.data || []));
-    });
+    execute(() => walletService.getPayoutHistory(), { showSuccessToast: false })
+      .then(res => res && setPayouts(res.data || []));
   }, []);
 
   if (loading && payouts.length === 0) return <div style={{ textAlign: 'center', padding: '20px' }}><Spinner /></div>;

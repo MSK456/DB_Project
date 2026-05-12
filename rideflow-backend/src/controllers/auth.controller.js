@@ -45,13 +45,15 @@ import { pool } from "../db/index.js";
 /** Short-lived cookie for the access token (1 day). */
 const accessCookieOptions = {
   httpOnly: true,
-  secure: false,
+  secure: true,
+  sameSite: 'none',
   maxAge: 24 * 60 * 60 * 1000,
 };
 
 const refreshCookieOptions = {
   httpOnly: true,
-  secure: false,
+  secure: true,
+  sameSite: 'none',
   maxAge: 10 * 24 * 60 * 60 * 1000,
 };
 
@@ -278,7 +280,8 @@ const logoutUser = asyncHandler(async (req, res) => {
 
   const clearOptions = {
     httpOnly: true,
-    secure: false,
+    secure: true,
+    sameSite: 'none',
   };
 
   return res
