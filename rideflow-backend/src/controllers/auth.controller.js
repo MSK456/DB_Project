@@ -88,13 +88,15 @@ const sanitiseUser = (user) => ({
 const registerUser = asyncHandler(async (req, res) => {
   const {
     full_name,
-    email,
+    email: rawEmail,
     phone,
     password,
     role = USER_ROLES.RIDER,
     license_number,
     cnic,
   } = req.body;
+
+  const email = rawEmail?.trim().toLowerCase();
 
   // ── 1. Block Admin self-registration ──────────────────────────────────────
   if (role === USER_ROLES.ADMIN) {
@@ -214,7 +216,8 @@ const registerUser = asyncHandler(async (req, res) => {
  * Authenticates a user and issues new access + refresh tokens.
  */
 const loginUser = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  const { email: rawEmail, password } = req.body;
+  const email = rawEmail?.trim().toLowerCase();
 
   // ── 1. Find user by email ─────────────────────────────────────────────────
   const user = await findUserByEmail(email);
