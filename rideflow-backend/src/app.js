@@ -54,10 +54,20 @@ app.use(express.static("public"));
 // Parse Cookie header and attach cookies to req.cookies.
 app.use(cookieParser());
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  ROUTES  — all API routes are versioned under /api/v1
-// ─────────────────────────────────────────────────────────────────────────────
 app.use("/api/v1", masterRouter);
+
+// Root route welcome message
+app.get("/", (req, res) => {
+  res.status(200).json({
+    message: "Welcome to RideFlow API",
+    version: "1.0.0",
+    status: "Live",
+    endpoints: {
+      health: "/health",
+      api: "/api/v1"
+    }
+  });
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  HEALTH CHECK ROUTE
