@@ -1,16 +1,20 @@
 import axios from 'axios';
 import useAuthStore from '../store/authStore';
 
+// Reads from VITE_API_URL env var — set in .env for local dev,
+// and in Render environment settings for production.
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+
 // Public instance — no auth headers (login, register, validate promo)
 export const publicApi = axios.create({
-  baseURL: 'http://localhost:8000/api/v1',
+  baseURL: API_BASE_URL,
   withCredentials: true, // sends httpOnly cookies automatically
   headers: { 'Content-Type': 'application/json' },
 });
 
 // Private instance — authenticated requests
 export const api = axios.create({
-  baseURL: 'http://localhost:8000/api/v1',
+  baseURL: API_BASE_URL,
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 });
