@@ -374,7 +374,7 @@ const updateProfile = asyncHandler(async (req, res) => {
       throw new ApiError(400, "Invalid phone number format");
     }
     const [existing] = await pool.execute(
-      'SELECT user_id FROM User WHERE phone = ? AND user_id != ?',
+      'SELECT user_id FROM user WHERE phone = ? AND user_id != ?',
       [phone, userId]
     );
     if (existing.length > 0) {
@@ -383,7 +383,7 @@ const updateProfile = asyncHandler(async (req, res) => {
   }
 
   await pool.execute(
-    'UPDATE User SET full_name = COALESCE(?, full_name), phone = COALESCE(?, phone) WHERE user_id = ?',
+    'UPDATE user SET full_name = COALESCE(?, full_name), phone = COALESCE(?, phone) WHERE user_id = ?',
     [full_name || null, phone || null, userId]
   );
 
@@ -412,7 +412,7 @@ const uploadProfilePhoto = asyncHandler(async (req, res) => {
   }
 
   const profile_photo = uploadResult.secure_url;
-  await pool.execute('UPDATE User SET profile_photo = ? WHERE user_id = ?', [profile_photo, req.user.userId]);
+  await pool.execute('UPDATE user SET profile_photo = ? WHERE user_id = ?', [profile_photo, req.user.userId]);
 
   return res.status(200).json(new ApiResponse(200, { profile_photo }, "Profile photo updated"));
 });
@@ -432,7 +432,7 @@ const changePassword = asyncHandler(async (req, res) => {
     throw new ApiError(400, "New password must be at least 8 characters long");
   }
 
-  const user = await pool.execute('SELECT password_hash FROM User WHERE user_id = ?', [userId])
+  const user = await pool.execute('SELECT password_hash FROM user WHERE user_id = ?', [userId])
     .then(([rows]) => rows[0]);
 
   const isMatch = await bcrypt.compare(current_password, user.password_hash);
@@ -446,7 +446,7 @@ const changePassword = asyncHandler(async (req, res) => {
   }
 
   const hashed = await bcrypt.hash(new_password, 12);
-  await pool.execute('UPDATE User SET password_hash = ?, refresh_token = NULL WHERE user_id = ?', [hashed, userId]);
+  await pool.execute('UPDATE user SET password_hash = ?, refresh_token = NULL WHERE user_id = ?', [hashed, userId]);
 
   return res
     .status(200)

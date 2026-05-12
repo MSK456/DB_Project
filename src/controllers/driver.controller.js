@@ -111,7 +111,7 @@ const updateDriverProfile = asyncHandler(async (req, res) => {
   const driverId = req.user.userId;
 
   await pool.execute(
-    'UPDATE Driver SET current_city = COALESCE(?, current_city) WHERE driver_id = ?',
+    'UPDATE driver SET current_city = COALESCE(?, current_city) WHERE driver_id = ?',
     [current_city || null, driverId]
   );
 

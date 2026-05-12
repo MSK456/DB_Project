@@ -20,11 +20,11 @@ SELECT
     du.phone      AS driver_phone,
     d.avg_rating  AS driver_rating,
     v.make, v.model, v.color, v.license_plate, v.vehicle_type
-FROM Ride r
-JOIN User ru    ON r.rider_id  = ru.user_id
-JOIN Driver d   ON r.driver_id = d.driver_id
-JOIN User du    ON d.driver_id = du.user_id
-JOIN Vehicle v  ON r.vehicle_id = v.vehicle_id
+FROM ride r
+JOIN user ru    ON r.rider_id  = ru.user_id
+JOIN driver d   ON r.driver_id = d.driver_id
+JOIN user du    ON d.driver_id = du.user_id
+JOIN vehicle v  ON r.vehicle_id = v.vehicle_id
 WHERE r.status IN ('Accepted', 'Driver En Route', 'In Progress');
 
 -- VIEW 2: Top-performing, verified, active drivers
@@ -39,8 +39,8 @@ SELECT
     d.current_city,
     d.availability_status,
     d.verification_status
-FROM Driver d
-JOIN User u ON d.driver_id = u.user_id
+FROM driver d
+JOIN user u ON d.driver_id = u.user_id
 WHERE d.avg_rating >= 4.5
   AND d.verification_status = 'Verified'
   AND u.account_status = 'Active'

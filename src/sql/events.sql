@@ -13,7 +13,7 @@ ON SCHEDULE EVERY 1 DAY
 STARTS (TIMESTAMP(CURDATE()) + INTERVAL 1 DAY)
 COMMENT 'Deactivates promo codes whose expiry_date has passed'
 DO
-    UPDATE Promo_Code
+    UPDATE promo_code
     SET    is_active = FALSE
     WHERE  expiry_date < CURDATE()
       AND  is_active   = TRUE;

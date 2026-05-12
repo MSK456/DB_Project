@@ -139,7 +139,7 @@ const formatRideResponse = (ride) => {
  * Helper to ensure user account is active
  */
 const checkActiveStatus = async (userId) => {
-  const [users] = await pool.execute('SELECT account_status FROM User WHERE user_id = ?', [userId]);
+  const [users] = await pool.execute('SELECT account_status FROM user WHERE user_id = ?', [userId]);
   if (users.length === 0) throw new ApiError(404, "User not found");
   if (users[0].account_status !== 'Active') {
     throw new ApiError(403, `Your account is ${users[0].account_status}. Please contact support.`);

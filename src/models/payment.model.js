@@ -23,7 +23,7 @@ const createPaymentRecord = async (connection, paymentData) => {
 const updatePaymentRecord = async (connection, paymentData) => {
   const { payment_id, status, promo_code, discount_amount, amount, method } = paymentData;
   await connection.execute(
-    `UPDATE Payment 
+    `UPDATE payment 
      SET payment_status = ?, promo_code = ?, discount_amount = ?, amount = ?, payment_method = ?, transaction_date = NOW()
      WHERE payment_id = ?`,
     [status, promo_code || null, discount_amount || 0, amount, method, payment_id]
@@ -33,8 +33,8 @@ const updatePaymentRecord = async (connection, paymentData) => {
 const getRiderPaymentHistory = async (riderId) => {
   const [rows] = await pool.execute(
     `SELECT p.*, r.pickup_location, r.dropoff_location, r.fare as original_fare
-     FROM Payment p
-     JOIN Ride r ON p.ride_id = r.ride_id
+     FROM payment p
+     JOIN ride r ON p.ride_id = r.ride_id
      WHERE p.rider_id = ?
      ORDER BY p.transaction_date DESC`,
     [riderId]
@@ -46,11 +46,11 @@ const getPaymentDetail = async (paymentId) => {
   const [rows] = await pool.execute(
     `SELECT p.*, r.pickup_location, r.dropoff_location, r.pickup_city, r.dropoff_city,
             u.full_name as driver_name, v.make, v.model, v.license_plate
-     FROM Payment p
-     JOIN Ride r ON p.ride_id = r.ride_id
-     JOIN Driver d ON r.driver_id = d.driver_id
-     JOIN User u ON d.driver_id = u.user_id
-     JOIN Vehicle v ON r.vehicle_id = v.vehicle_id
+     FROM payment p
+     JOIN ride r ON p.ride_id = r.ride_id
+     JOIN driver d ON r.driver_id = d.driver_id
+     JOIN user u ON d.driver_id = u.user_id
+     JOIN vehicle v ON r.vehicle_id = v.vehicle_id
      WHERE p.payment_id = ?`,
     [paymentId]
   );
@@ -60,10 +60,10 @@ const getPaymentDetail = async (paymentId) => {
 const getAllPaymentsAdmin = async (filters = {}) => {
   let sql = `
     SELECT p.*, r.pickup_city, u_rider.full_name as rider_name, u_driver.full_name as driver_name
-    FROM Payment p
-    JOIN Ride r ON p.ride_id = r.ride_id
-    JOIN User u_rider ON p.rider_id = u_rider.user_id
-    JOIN User u_driver ON r.driver_id = u_driver.user_id
+    FROM payment p
+    JOIN ride r ON p.ride_id = r.ride_id
+    JOIN user u_rider ON p.rider_id = u_rider.user_id
+    JOIN user u_driver ON r.driver_id = u_driver.user_id
     WHERE 1=1
   `;
   const params = [];

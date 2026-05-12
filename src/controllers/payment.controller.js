@@ -73,7 +73,7 @@ const handlePayForRide = asyncHandler(async (req, res) => {
     // 4b: If Wallet, debit rider
     if (payment_method === 'Wallet') {
       await updateRiderBalance(connection, riderId, -finalAmount);
-      const [rRows] = await connection.execute("SELECT balance FROM Rider_Wallet WHERE rider_id = ?", [riderId]);
+      const [rRows] = await connection.execute("SELECT balance FROM rider_wallet WHERE rider_id = ?", [riderId]);
       const newRiderBalance = rRows[0].balance;
 
       await recordTransaction(connection, {
@@ -89,14 +89,14 @@ const handlePayForRide = asyncHandler(async (req, res) => {
     }
 
     // 4c: Calculate Driver Earnings (based on original fare)
-    const [config] = await connection.execute("SELECT commission_rate FROM Fare_Config WHERE vehicle_type = ?", [ride.vehicle_type]);
+    const [config] = await connection.execute("SELECT commission_rate FROM fare_config WHERE vehicle_type = ?", [ride.vehicle_type]);
     const commissionRate = config[0]?.commission_rate || 0.20;
     const driverEarning = ride.fare * (1 - commissionRate);
     const commissionDeducted = ride.fare * commissionRate;
 
     // 4d: Credit Driver Wallet
     await updateDriverBalance(connection, ride.driver_id, driverEarning);
-    const [dRows] = await connection.execute("SELECT balance FROM Wallet WHERE driver_id = ?", [ride.driver_id]);
+    const [dRows] = await connection.execute("SELECT balance FROM wallet WHERE driver_id = ?", [ride.driver_id]);
     const newDriverBalance = dRows[0].balance;
 
     await recordTransaction(connection, {
